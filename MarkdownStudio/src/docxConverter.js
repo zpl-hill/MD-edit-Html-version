@@ -58,13 +58,15 @@ async function inline(tokens, style, ctx) {
       case 'image': {
         const image = await ctx.resolveImage(token.href || '');
         if (image) {
+          ctx.imageCount = (ctx.imageCount || 0) + 1;
           runs.push(new d.ImageRun({
             data: image.data,
             transformation: { width: image.width, height: image.height },
             type: image.type
           }));
         } else {
-          runs.push(new d.TextRun({ text: '[图片: ' + (token.text || '') + ']', italics: true, color: '888888' }));
+          ctx.imageFailures = (ctx.imageFailures || 0) + 1;
+          runs.push(new d.TextRun({ text: '[图片: ' + (token.text || token.href || '') + ']', italics: true, color: '888888' }));
         }
         break;
       }
@@ -139,7 +141,13 @@ async function convertBlock(token, ctx) {
           children: [new d.TextRun({ text: token.text, font: 'Consolas', color: 'A31515' })]
         })];
       }
-      return [new d.Paragraph({ children: await inline(token.tokens || textFallback(token), {}, ctx) })];
+      /* 独占一段的图片在 Word 里居中，更贴近 8D / MSA 报告的截图排版。 */
+      const kids = token.tokens || [];
+      const onlyImage = kids.length === 1 && kids[0].type === 'image';
+      return [new d.Paragraph({
+        alignment: onlyImage ? d.AlignmentType.CENTER : undefined,
+        children: await inline(kids.length ? kids : textFallback(token), {}, ctx)
+      })];
     }
     case 'code': {
       const lines = String(token.text || '').split('\n');
@@ -187,6 +195,7 @@ export async function convertTokens(tokens, options) {
   if (!d || !d.Document) throw new Error('docx.js 未加载，请检查发布包完整性');
   const ctx = {
     resolveImage: options.resolveImage || (async () => null),
+    imageCount: 0,
     imageFailures: 0,
     mathCount: 0,
     mathFailures: 0
@@ -261,6 +270,7 @@ export async function convertTokens(tokens, options) {
   document.__mdslStats = {
     mathCount: ctx.mathCount,
     mathFailures: ctx.mathFailures,
+    imageCount: ctx.imageCount,
     imageFailures: ctx.imageFailures
   };
   return document;

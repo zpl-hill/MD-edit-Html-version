@@ -31371,7 +31371,8 @@ const HELP = [
         title: '链接、图片与锚点',
         rows: [
           { syntax: '[显示文字](https://example.com)', desc: '超链接；本工具会加上 noreferrer，并在新标签打开', insert: '[显示文字](https://example.com)\n' },
-          { syntax: '![说明](data:image/png;base64,...)', desc: '图片。离线单文件建议用 data URI（图片会随 .md 一起保存）；相对路径在换机器后可能失效', insert: '![示意](data:image/png;base64,)\n' },
+          { syntax: '直接粘贴截图 / 拖入图片', desc: '最省事的做法：Ctrl+V 粘贴截图，或把 png/jpg/webp/svg 拖进窗口，会自动内嵌成 data URI 并插入光标处；大图自动压缩', insert: null },
+          { syntax: '![说明](data:image/png;base64,...)', desc: '图片写法。内嵌 data URI 会随 .md 一起保存，离线预览和 DOCX 导出都能带上；外链或相对路径图片在 DOCX 里只会留下占位文字', insert: '![示意](data:image/png;base64,)\n' },
           { syntax: '[跳到第二节](#第二节)', desc: '跳到本文档内的标题锚点；中文标题直接用原文，重复标题会自动加序号', insert: '[跳转到](#标题)\n' },
           { syntax: '<!-- 注释 -->', desc: 'HTML 注释：只出现在源码里，预览与打印都不显示', insert: '<!-- 这里写备注，不会显示在预览中 -->\n' }
         ]
@@ -31460,7 +31461,7 @@ const HELP = [
         rows: [
           { syntax: '打印预览', desc: '按 A4、上下 15mm / 左右 20mm 预分页，自动加标题+日期页眉与 Page X of Y 页码', insert: null },
           { syntax: '导出 PDF', desc: '走浏览器原生打印，在对话框里选「另存为 PDF」；文字可选中、保真度最高', insert: null },
-          { syntax: '导出 DOCX', desc: '标题映射为 Word Heading 1~3，表格、代码、内嵌图片、页眉页码都会保留', insert: null },
+          { syntax: '导出 DOCX', desc: '标题映射为 Word Heading 1~3，表格、代码、内嵌图片（自动居中）、页眉页码都会保留；只支持内嵌图片，外链/相对路径会降级为占位文字并在状态栏提示', insert: null },
           { syntax: 'Word 里的公式', desc: '$...$ / $$...$$ 会转成 Word 原生公式（OMML），在 Word 中可双击编辑；极复杂公式若转换失败会保留红色源码', insert: null },
           { syntax: '阅读模式', desc: '只想读文档时点「阅读」：隐藏目录与编辑器，预览铺满窗口宽度、字号行距更舒适', insert: null }
         ]
@@ -33180,6 +33181,161 @@ function standaloneMath(text) {
 
 return {texToOmml,splitMathSegments,standaloneMath};
 })();
+const __mdsl_imageData = (() => {
+/* imageData.js — 图片 I/O：粘贴/拖入图片内嵌为 data URI；导出时解码为 Word 可用字节。
+   仅用 FileReader / Image / canvas，无网络请求、无外部依赖，file:// 下可用。 */
+const DOCX_TYPES = new Set(['png', 'jpeg', 'jpg', 'gif', 'bmp']);
+const MAX_EDGE = 1600;
+const MAX_FILE = 20 * 1024 * 1024;
+
+function isImageFile(file) {
+  if (!file) return false;
+  if (file.type && /^image\//i.test(file.type)) return true;
+  return /\.(png|jpe?g|gif|bmp|webp|svg|avif|heic|heif|ico)$/i.test(file.name || '');
+}
+
+/* 拖入：优先 files；从网页拖图片时可能只有 items。 */
+function imageFilesFromDataTransfer(dt) {
+  if (!dt) return [];
+  const list = Array.from(dt.files || []);
+  if (!list.length && dt.items) {
+    Array.from(dt.items).forEach(item => {
+      if (item.kind === 'file') { const f = item.getAsFile(); if (f) list.push(f); }
+    });
+  }
+  return list.filter(isImageFile);
+}
+
+/* 粘贴截图：clipboardData.items 里的 image/* 项。 */
+function imageFilesFromClipboard(cd) {
+  if (!cd) return [];
+  const out = [];
+  Array.from(cd.items || []).forEach(item => {
+    if (item.kind === 'file' && /^image\//i.test(item.type || '')) {
+      const f = item.getAsFile(); if (f) out.push(f);
+    }
+  });
+  if (!out.length) Array.from(cd.files || []).forEach(f => { if (isImageFile(f)) out.push(f); });
+  return out;
+}
+
+function readAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('读取图片失败'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve({ img, width: img.naturalWidth || 0, height: img.naturalHeight || 0 });
+    img.onerror = () => reject(new Error('浏览器无法解码该图片'));
+    img.src = src;
+  });
+}
+
+/* canvas 栅格化：统一尺寸、把 WebP/SVG/AVIF 转成 Word 认识的 PNG，并压住 .md 体积。 */
+function render(img, width, height, maxEdge, asJpeg, quality) {
+  const scale = Math.min(1, maxEdge / Math.max(1, width, height));
+  const w = Math.max(1, Math.round(width * scale));
+  const h = Math.max(1, Math.round(height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (asJpeg) { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); }
+  ctx.drawImage(img, 0, 0, w, h);
+  return { uri: canvas.toDataURL(asJpeg ? 'image/jpeg' : 'image/png', quality), width: w, height: h };
+}
+
+function base64ToBytes(text) {
+  const binary = atob(String(text).replace(/\s/g, ''));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function normalizeType(subtype) {
+  const t = String(subtype || 'png').toLowerCase();
+  return (t === 'jpeg' || t === 'jpg') ? 'jpg' : t;
+}
+
+function altFromFile(file) {
+  const base = String((file && file.name) || '图片').replace(/\.[^.]+$/, '');
+  return base.replace(/[\][()\r\n]/g, ' ').trim().slice(0, 60) || '图片';
+}
+
+/* 图片文件 → 一段可直接插入编辑器的 Markdown。
+   原生格式且体积/尺寸可控时保留原字节（GIF 动图、JPEG 体积都不会被破坏）；
+   否则栅格化为 PNG/JPEG，兼顾 Word 兼容性与 .md 大小。 */
+async function fileToMarkdownImage(file) {
+  if (!file || file.size > MAX_FILE) throw new Error('图片超过 20 MB，请先压缩');
+  const sourceUri = await readAsDataUrl(file);
+  const loaded = await loadImage(sourceUri);
+  const width = loaded.width || 800;
+  const height = loaded.height || 600;
+  const subtype = (/^data:image\/([^;,]+)/i.exec(sourceUri) || [])[1] || '';
+  const native = DOCX_TYPES.has(subtype.toLowerCase());
+  let uri = sourceUri, outW = width, outH = height;
+  if (!native || file.size > 2 * 1024 * 1024 || Math.max(width, height) > 2000) {
+    const asJpeg = /^jpe?g$/i.test(subtype);
+    let r = render(loaded.img, width, height, MAX_EDGE, asJpeg, 0.88);
+    if (r.uri.length > 2.5 * 1024 * 1024) {
+      const small = render(loaded.img, width, height, 1000, true, 0.8);
+      if (small.uri.length < r.uri.length) r = small;
+    }
+    uri = r.uri; outW = r.width; outH = r.height;
+  }
+  const alt = altFromFile(file);
+  return {
+    markdown: '![' + alt + '](' + uri + ')',
+    uri, alt, width: outW, height: outH,
+    bytes: Math.round(uri.length * 0.75)
+  };
+}
+
+/* 让图片自成一段：光标所在行有内容时补空行，避免图片挤进正文行内。 */
+function buildImageSnippet(entry, before, after) {
+  const prefix = before && before.trim() ? '\n\n' : '\n';
+  const suffix = after && after.trim() ? '\n\n' : '\n';
+  return prefix + entry.markdown + suffix;
+}
+
+/* DOCX 图片解码：只接受内嵌 data: 与同源 blob:，绝不主动请求 http(s)/本地路径，
+   避免离线环境挂起或把文档里的外链泄露出去。无法解码时返回 null 由调用方降级。 */
+async function decodeImageForDocx(src) {
+  const value = String(src || '');
+  if (!/^(data:image\/|blob:)/i.test(value)) return null;
+  try {
+    const direct = /^data:image\/([^;,]+);base64,([\s\S]+)$/i.exec(value);
+    if (direct && DOCX_TYPES.has(direct[1].toLowerCase())) {
+      const dims = await loadImage(value);
+      const w = dims.width || 400, h = dims.height || 300;
+      const ratio = Math.min(1, 560 / w);
+      return {
+        data: base64ToBytes(direct[2]),
+        type: normalizeType(direct[1]),
+        width: Math.max(1, Math.round(w * ratio)),
+        height: Math.max(1, Math.round(h * ratio))
+      };
+    }
+    /* WebP / AVIF / SVG / 百分号编码 data URI / blob: → 栅格化 PNG */
+    const dims = await loadImage(value);
+    const r = render(dims.img, dims.width || 800, dims.height || 600, MAX_EDGE, false);
+    const ratio = Math.min(1, 560 / r.width);
+    return {
+      data: base64ToBytes(r.uri.slice(r.uri.indexOf(',') + 1)),
+      type: 'png',
+      width: Math.max(1, Math.round(r.width * ratio)),
+      height: Math.max(1, Math.round(r.height * ratio))
+    };
+  } catch (e) { return null; }
+}
+
+return {imageFilesFromDataTransfer,imageFilesFromClipboard,fileToMarkdownImage,buildImageSnippet,decodeImageForDocx};
+})();
 const __mdsl_docxConverter = (() => {
 /* docxConverter.js — Marked token → docx.js 元素树（L3 纯逻辑，可单测）。 */
 const { stripTags } = __mdsl_sanitizer;
@@ -33240,13 +33396,15 @@ async function inline(tokens, style, ctx) {
       case 'image': {
         const image = await ctx.resolveImage(token.href || '');
         if (image) {
+          ctx.imageCount = (ctx.imageCount || 0) + 1;
           runs.push(new d.ImageRun({
             data: image.data,
             transformation: { width: image.width, height: image.height },
             type: image.type
           }));
         } else {
-          runs.push(new d.TextRun({ text: '[图片: ' + (token.text || '') + ']', italics: true, color: '888888' }));
+          ctx.imageFailures = (ctx.imageFailures || 0) + 1;
+          runs.push(new d.TextRun({ text: '[图片: ' + (token.text || token.href || '') + ']', italics: true, color: '888888' }));
         }
         break;
       }
@@ -33321,7 +33479,13 @@ async function convertBlock(token, ctx) {
           children: [new d.TextRun({ text: token.text, font: 'Consolas', color: 'A31515' })]
         })];
       }
-      return [new d.Paragraph({ children: await inline(token.tokens || textFallback(token), {}, ctx) })];
+      /* 独占一段的图片在 Word 里居中，更贴近 8D / MSA 报告的截图排版。 */
+      const kids = token.tokens || [];
+      const onlyImage = kids.length === 1 && kids[0].type === 'image';
+      return [new d.Paragraph({
+        alignment: onlyImage ? d.AlignmentType.CENTER : undefined,
+        children: await inline(kids.length ? kids : textFallback(token), {}, ctx)
+      })];
     }
     case 'code': {
       const lines = String(token.text || '').split('\n');
@@ -33369,6 +33533,7 @@ async function convertTokens(tokens, options) {
   if (!d || !d.Document) throw new Error('docx.js 未加载，请检查发布包完整性');
   const ctx = {
     resolveImage: options.resolveImage || (async () => null),
+    imageCount: 0,
     imageFailures: 0,
     mathCount: 0,
     mathFailures: 0
@@ -33443,6 +33608,7 @@ async function convertTokens(tokens, options) {
   document.__mdslStats = {
     mathCount: ctx.mathCount,
     mathFailures: ctx.mathFailures,
+    imageCount: ctx.imageCount,
     imageFailures: ctx.imageFailures
   };
   return document;
@@ -33451,46 +33617,22 @@ async function convertTokens(tokens, options) {
 return {convertTokens};
 })();
 const __mdsl_exportDocx = (() => {
-/* exportDocx.js — 组装 DOCX 并触发下载；图片仅支持内嵌 data URI（SDD 6.3）。 */
+/* exportDocx.js — 组装 DOCX 并触发下载；图片支持内嵌 data URI 与同源 blob URI。 */
 const { convertTokens } = __mdsl_docxConverter;
 const { downloadBlob } = __mdsl_fileService;
-async function resolveImage(src) {
-  const match = /^data:image\/(png|jpeg|jpg|gif|bmp);base64,([\s\S]+)$/i.exec(String(src || ''));
-  if (!match) return null;
-  try {
-    const binary = atob(match[2]);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const dims = await new Promise(resolve => {
-      const img = new Image();
-      img.onload = () => resolve({ w: img.naturalWidth || 400, h: img.naturalHeight || 300 });
-      img.onerror = () => resolve({ w: 400, h: 300 });
-      img.src = String(src);
-    });
-    const ratio = Math.min(1, 560 / dims.w);
-    let type = match[1].toLowerCase();
-    if (type === 'jpeg') type = 'jpg';
-    return {
-      data: bytes,
-      width: Math.max(1, Math.round(dims.w * ratio)),
-      height: Math.max(1, Math.round(dims.h * ratio)),
-      type
-    };
-  } catch (e) { return null; }
-}
-
+const { decodeImageForDocx } = __mdsl_imageData;
 function createDocxExporter(options) {
   async function generate(filename) {
     const tokens = options.getTokens();
     const document = await convertTokens(tokens, {
       title: options.getTitle() || 'Markdown Studio Lite',
-      resolveImage
+      resolveImage: decodeImageForDocx
     });
     const blob = await globalThis.docx.Packer.toBlob(document);
     downloadBlob(blob, filename);
     return { ok: true, size: blob.size, stats: document.__mdslStats || null };
   }
-  return { generate, resolveImage };
+  return { generate, resolveImage: decodeImageForDocx };
 }
 
 return {createDocxExporter};
@@ -33515,6 +33657,7 @@ const { createFileService } = __mdsl_fileService;
 const { createPrintController } = __mdsl_print;
 const { createDocxExporter } = __mdsl_exportDocx;
 const { createHelpController } = __mdsl_help;
+const { imageFilesFromDataTransfer, imageFilesFromClipboard, fileToMarkdownImage, buildImageSnippet } = __mdsl_imageData;
 const $ = selector => document.querySelector(selector);
 
 let uiScale = 1.15;
@@ -33877,6 +34020,8 @@ async function exportDocx() {
     const stats = result.stats;
     if (stats && stats.mathCount) message += ' · ' + stats.mathCount + ' 个公式已转为 Word 原生公式';
     if (stats && stats.mathFailures) message += ' · 注意：' + stats.mathFailures + ' 个公式转换失败，已保留源码';
+    if (stats && stats.imageCount) message += ' · ' + stats.imageCount + ' 张图片已嵌入 Word';
+    if (stats && stats.imageFailures) message += ' · 注意：' + stats.imageFailures + ' 张图片是外链/相对路径，离线无法读取，已用占位文字代替';
     setStatus(message);
   } catch (e) {
     setStatus('DOCX 导出失败：' + (e && e.message ? e.message : '未知错误'));
@@ -34115,9 +34260,45 @@ window.addEventListener('keydown', event => {
   if (event.key === 'Escape' && dialog && dialog.classList.contains('open')) dialog.classList.remove('open');
 });
 
+/* 图片内嵌：粘贴截图 / 拖入图片文件 → data URI 写进 .md。
+   图片随文档一起保存，离线预览、打印和 DOCX 导出都能带上，无需同目录图片文件。 */
+async function insertImageFiles(files) {
+  if (viewMode === 'reader') applyView('split', true);
+  let ok = 0, failed = 0, bytes = 0;
+  for (const file of files) {
+    try {
+      const entry = await fileToMarkdownImage(file);
+      const state = editorRef.view.state;
+      const head = state.selection.main.head;
+      const line = state.doc.lineAt(head);
+      const before = line.text.slice(0, head - line.from);
+      const after = line.text.slice(head - line.from);
+      editorRef.insertText(buildImageSnippet(entry, before, after));
+      ok++;
+      bytes += entry.bytes;
+    } catch (e) {
+      failed++;
+      console.warn('[image]', e);
+    }
+  }
+  setStatus('已内嵌 ' + ok + ' 张图片（约 ' + formatSize(bytes) + '，随 .md 一起保存，导出 DOCX 会保留）'
+    + (failed ? ' · ' + failed + ' 张无法解码' : ''));
+}
+
+/* 捕获阶段拦截：有图片时不再让 CodeMirror 把剪贴板内容当纯文本粘贴。 */
+document.addEventListener('paste', async event => {
+  const files = imageFilesFromClipboard(event.clipboardData);
+  if (!files.length) return;
+  event.preventDefault();
+  event.stopPropagation();
+  await insertImageFiles(files);
+}, true);
+
 window.addEventListener('dragover', event => event.preventDefault());
 window.addEventListener('drop', async event => {
   event.preventDefault();
+  const images = imageFilesFromDataTransfer(event.dataTransfer);
+  if (images.length) { await insertImageFiles(images); return; }
   const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
   if (!file) return;
   const result = await fileService.openDropped(file);

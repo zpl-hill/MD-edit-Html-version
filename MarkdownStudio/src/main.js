@@ -17,6 +17,7 @@ import { createFileService } from "./fileService.js";
 import { createPrintController } from "./print.js";
 import { createDocxExporter } from "./exportDocx.js";
 import { createHelpController } from "./help.js";
+import { imageFilesFromDataTransfer, imageFilesFromClipboard, fileToMarkdownImage, buildImageSnippet } from "./imageData.js";
 
 const $ = selector => document.querySelector(selector);
 
@@ -380,6 +381,8 @@ async function exportDocx() {
     const stats = result.stats;
     if (stats && stats.mathCount) message += ' · ' + stats.mathCount + ' 个公式已转为 Word 原生公式';
     if (stats && stats.mathFailures) message += ' · 注意：' + stats.mathFailures + ' 个公式转换失败，已保留源码';
+    if (stats && stats.imageCount) message += ' · ' + stats.imageCount + ' 张图片已嵌入 Word';
+    if (stats && stats.imageFailures) message += ' · 注意：' + stats.imageFailures + ' 张图片是外链/相对路径，离线无法读取，已用占位文字代替';
     setStatus(message);
   } catch (e) {
     setStatus('DOCX 导出失败：' + (e && e.message ? e.message : '未知错误'));
@@ -618,9 +621,45 @@ window.addEventListener('keydown', event => {
   if (event.key === 'Escape' && dialog && dialog.classList.contains('open')) dialog.classList.remove('open');
 });
 
+/* 图片内嵌：粘贴截图 / 拖入图片文件 → data URI 写进 .md。
+   图片随文档一起保存，离线预览、打印和 DOCX 导出都能带上，无需同目录图片文件。 */
+async function insertImageFiles(files) {
+  if (viewMode === 'reader') applyView('split', true);
+  let ok = 0, failed = 0, bytes = 0;
+  for (const file of files) {
+    try {
+      const entry = await fileToMarkdownImage(file);
+      const state = editorRef.view.state;
+      const head = state.selection.main.head;
+      const line = state.doc.lineAt(head);
+      const before = line.text.slice(0, head - line.from);
+      const after = line.text.slice(head - line.from);
+      editorRef.insertText(buildImageSnippet(entry, before, after));
+      ok++;
+      bytes += entry.bytes;
+    } catch (e) {
+      failed++;
+      console.warn('[image]', e);
+    }
+  }
+  setStatus('已内嵌 ' + ok + ' 张图片（约 ' + formatSize(bytes) + '，随 .md 一起保存，导出 DOCX 会保留）'
+    + (failed ? ' · ' + failed + ' 张无法解码' : ''));
+}
+
+/* 捕获阶段拦截：有图片时不再让 CodeMirror 把剪贴板内容当纯文本粘贴。 */
+document.addEventListener('paste', async event => {
+  const files = imageFilesFromClipboard(event.clipboardData);
+  if (!files.length) return;
+  event.preventDefault();
+  event.stopPropagation();
+  await insertImageFiles(files);
+}, true);
+
 window.addEventListener('dragover', event => event.preventDefault());
 window.addEventListener('drop', async event => {
   event.preventDefault();
+  const images = imageFilesFromDataTransfer(event.dataTransfer);
+  if (images.length) { await insertImageFiles(images); return; }
   const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
   if (!file) return;
   const result = await fileService.openDropped(file);

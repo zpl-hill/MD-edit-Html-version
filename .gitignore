@@ -2,9 +2,9 @@
 .workbuddy/
 
 # Build & test artifacts
-dist/build.log
-dist/probe*.log
-dist/downloads/
+**/dist/build.log
+**/dist/probe*.log
+**/dist/downloads/
 *.log
 
 # Editor / OS noise

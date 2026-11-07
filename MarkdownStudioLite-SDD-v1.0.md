@@ -552,11 +552,22 @@ flowchart LR
 | `image` | `ImageRun({ data, transformation:{width,height} })` | 由 `resolveImage()` 返回字节；见 6.3 |
 | `hr` | `Paragraph({ border:{ bottom } })` | — |
 | `html` | 经 `sanitizer` 后按纯文本或白名单块处理 | 不执行脚本 |
-| `math` | V1 降级为等宽文本（保留 LaTeX 源码） | 见 18 章 OPEN-02；MathML → OMML 需额外转换，V1.1 再议 |
+| `math` | Word 原生可编辑 OMML 公式（MathML → OMML，V1.2 起） | 转换失败降级为红色等宽源码并计数 |
 
 ### 6.3 图片解析策略
 
-`resolveImage(src)` 按序尝试：① `data:` URI 直接解码；② 拖入/打开文件时建立的 `Blob` 缓存（key 为相对路径）；③ IndexedDB `images` store；④ 相对 `.md` 文件路径 —— `file://` 下浏览器**无法读取同目录本地图片**，故 V1 明确提示「请将图片以 data URI 内嵌，或直接拖入编辑器」。无法解析时输出占位文本 `[图片: src]` 并在导出报告中计数，不静默丢弃。
+**V1 实现（V1.5 图片内嵌补齐后）**：`resolveImage()` 由 `src/imageData.js` 的 `decodeImageForDocx()` 提供，只处理两类输入：
+
+1. `data:image/(png|jpeg|gif|bmp);base64,...` —— 直接 `atob` 解码成字节，保留原格式（GIF、JPEG 体积不被破坏）；
+2. 其它内嵌 data URI（webp / avif / svg+xml / 百分号编码）与同源 `blob:` —— 用 `Image` + `canvas` 栅格化为 PNG 再解码。
+
+导出时图片等比限制在 560 px 宽；独占一个段落的图片在 Word 中居中。`http(s):` 外链和相对路径**不主动请求**（`file://` 下浏览器读不到同目录图片，离线环境也不应发网络请求），降级为占位文本 `[图片: alt]`，且 `imageFailures` 计数会出现在状态栏，不静默丢弃。
+
+图片进入文档靠「编辑器内嵌」而不是路径引用：`Ctrl+V` 粘贴截图，或把 png/jpg/webp/svg 等图片文件拖进窗口（`imageFilesFromClipboard()` / `imageFilesFromDataTransfer()`），`fileToMarkdownImage()` 生成 `![alt](data:...)` 插到光标处并自成一段；原生格式且 ≤ 2 MB / ≤ 2000 px 时保留原字节，大图或 Word 不认识的格式自动栅格化压缩（上限 1600 px，过大再降为 JPEG 0.8）。图片随 `.md` 与 IndexedDB 快照一起保存，离线预览、打印与 DOCX 导出均可用。
+
+> 原计划中的 Blob 相对路径缓存与 IndexedDB `images` store 未启用：内嵌 data URI 已覆盖该场景，且避免单文档工具引入额外状态；`images` store 保留在 schema 中供后续多附件版本使用。
+
+**已知限制**：预览区仍按浏览器默认行为加载 `http(s):` 外链图片（会产生一次网络请求，离线时裂图），但 DOCX 不会把它们带进去。
 
 ### 6.4 样式与页面设置
 

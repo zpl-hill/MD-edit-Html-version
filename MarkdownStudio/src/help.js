@@ -45,7 +45,8 @@ const HELP = [
         title: '链接、图片与锚点',
         rows: [
           { syntax: '[显示文字](https://example.com)', desc: '超链接；本工具会加上 noreferrer，并在新标签打开', insert: '[显示文字](https://example.com)\n' },
-          { syntax: '![说明](data:image/png;base64,...)', desc: '图片。离线单文件建议用 data URI（图片会随 .md 一起保存）；相对路径在换机器后可能失效', insert: '![示意](data:image/png;base64,)\n' },
+          { syntax: '直接粘贴截图 / 拖入图片', desc: '最省事的做法：Ctrl+V 粘贴截图，或把 png/jpg/webp/svg 拖进窗口，会自动内嵌成 data URI 并插入光标处；大图自动压缩', insert: null },
+          { syntax: '![说明](data:image/png;base64,...)', desc: '图片写法。内嵌 data URI 会随 .md 一起保存，离线预览和 DOCX 导出都能带上；外链或相对路径图片在 DOCX 里只会留下占位文字', insert: '![示意](data:image/png;base64,)\n' },
           { syntax: '[跳到第二节](#第二节)', desc: '跳到本文档内的标题锚点；中文标题直接用原文，重复标题会自动加序号', insert: '[跳转到](#标题)\n' },
           { syntax: '<!-- 注释 -->', desc: 'HTML 注释：只出现在源码里，预览与打印都不显示', insert: '<!-- 这里写备注，不会显示在预览中 -->\n' }
         ]
@@ -134,7 +135,7 @@ const HELP = [
         rows: [
           { syntax: '打印预览', desc: '按 A4、上下 15mm / 左右 20mm 预分页，自动加标题+日期页眉与 Page X of Y 页码', insert: null },
           { syntax: '导出 PDF', desc: '走浏览器原生打印，在对话框里选「另存为 PDF」；文字可选中、保真度最高', insert: null },
-          { syntax: '导出 DOCX', desc: '标题映射为 Word Heading 1~3，表格、代码、内嵌图片、页眉页码都会保留', insert: null },
+          { syntax: '导出 DOCX', desc: '标题映射为 Word Heading 1~3，表格、代码、内嵌图片（自动居中）、页眉页码都会保留；只支持内嵌图片，外链/相对路径会降级为占位文字并在状态栏提示', insert: null },
           { syntax: 'Word 里的公式', desc: '$...$ / $$...$$ 会转成 Word 原生公式（OMML），在 Word 中可双击编辑；极复杂公式若转换失败会保留红色源码', insert: null },
           { syntax: '阅读模式', desc: '只想读文档时点「阅读」：隐藏目录与编辑器，预览铺满窗口宽度、字号行距更舒适', insert: null }
         ]
