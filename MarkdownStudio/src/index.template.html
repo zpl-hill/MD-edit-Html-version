@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="author" content="Zhao Pengliang (Fred), zplwsygr@163.com">
+<title>Markdown Studio Lite</title>
+<!-- MDSL:CSS -->
+</head>
+<body class="view-split">
+
+<header class="toolbar" id="toolbar">
+  <div class="brand">
+    <strong>Markdown Studio <span class="brand-lite">Lite</span></strong>
+    <small id="app-subtitle">单文件 · 离线 · 零安装</small>
+  </div>
+  <div class="toolbar-actions">
+    <button class="tbtn" data-action="open" title="打开 (Ctrl+O)">打开</button>
+    <button class="tbtn" data-action="save" title="保存 (Ctrl+S)">保存</button>
+    <button class="tbtn" data-action="save-as" title="另存为">另存为</button>
+
+    <span class="toolbar-sep"></span>
+    <div class="view-switch" role="group" aria-label="视图模式">
+      <button class="tbtn view-btn active" data-view="split" title="三栏：目录 + 编辑 + 预览">三栏</button>
+      <button class="tbtn view-btn" data-view="editor" title="仅编辑：隐藏预览，专注写作">编辑</button>
+      <button class="tbtn view-btn" data-view="reader" title="仅阅读：隐藏目录与编辑器，适合读文档 / 小屏 (F6 循环)">阅读</button>
+    </div>
+
+    <span class="toolbar-sep"></span>
+    <button class="tbtn" data-action="find" title="搜索 (Ctrl+F)">搜索</button>
+    <button class="tbtn" data-action="help" title="Markdown 与公式语法速查 (F1)">语法帮助</button>
+
+    <span class="toolbar-sep"></span>
+    <button class="tbtn" data-action="print-mode" title="切换打印预览">打印预览</button>
+    <button class="tbtn" data-action="pdf" title="打印 / 另存为 PDF (Ctrl+Shift+P)">导出 PDF</button>
+    <button class="tbtn" data-action="docx" title="导出 Word (Ctrl+Shift+W)">导出 DOCX</button>
+
+    <div class="print-tools" aria-label="打印预览缩放与方向">
+      <button class="tbtn icon-btn" data-action="zoom-out" title="缩小打印预览">−</button>
+      <button class="tbtn icon-btn" data-action="fit" title="适应 100%">100%</button>
+      <button class="tbtn icon-btn" data-action="zoom-in" title="放大打印预览">+</button>
+      <button class="tbtn" data-action="orientation" title="纵向 / 横向">方向</button>
+    </div>
+
+    <span class="toolbar-sep"></span>
+    <div class="ui-scale-group" aria-label="界面字体缩放">
+      <button class="tbtn icon-btn" data-action="ui-smaller" title="缩小界面字体">A−</button>
+      <span class="ui-scale-label" id="ui-scale-label">115%</span>
+      <button class="tbtn icon-btn" data-action="ui-larger" title="放大界面字体">A+</button>
+    </div>
+    <button class="tbtn" data-action="theme" title="切换主题 (F8)">主题</button>
+    <button class="tbtn" data-action="about" title="关于与许可证">关于</button>
+  </div>
+</header>
+
+<div class="banner" id="banner"></div>
+
+<main class="workspace">
+  <aside class="pane toc-pane">
+    <div class="pane-title">目录</div>
+    <div class="toc-tree" id="toc-tree"></div>
+    <div class="pane-title recent-title">最近文件</div>
+    <div class="recent-list" id="recent-list"></div>
+  </aside>
+  <section class="pane editor-pane">
+    <div class="pane-title">Markdown 编辑器</div>
+    <div class="editor-host" id="editor-host"></div>
+  </section>
+  <section class="pane preview-pane">
+    <div class="pane-title">实时预览 <span class="pane-hint">· 点击图片可放大</span></div>
+    <div class="find-bar" id="find-bar" hidden>
+      <input type="search" id="find-input" class="find-input" placeholder="在阅读内容中查找…" autocomplete="off" spellcheck="false" aria-label="在阅读内容中查找">
+      <span class="find-count" id="find-count">0/0</span>
+      <button class="tbtn icon-btn" type="button" data-find="prev" title="上一个 (Shift+Enter)">↑</button>
+      <button class="tbtn icon-btn" type="button" data-find="next" title="下一个 (Enter)">↓</button>
+      <button class="tbtn icon-btn find-case" type="button" data-find="case" title="区分大小写" aria-pressed="false">Aa</button>
+      <button class="tbtn icon-btn" type="button" data-find="close" title="关闭 (Esc)">×</button>
+    </div>
+    <div class="markdown-body" id="preview"></div>
+  </section>
+</main>
+
+<footer class="statusbar">
+  <span id="status-text">就绪</span>
+  <span class="status-spacer"></span>
+  <span id="status-view">视图: 三栏</span>
+  <span class="status-divider"></span>
+  <span id="status-doc">0 行</span>
+  <span class="status-divider"></span>
+  <span id="status-save">就绪</span>
+  <span class="status-divider"></span>
+  <span id="status-backend">存储: 检测中</span>
+</footer>
+
+<div class="print-source" id="print-source" aria-hidden="true"></div>
+<div class="print-pages" id="print-pages"></div>
+
+<div class="mdsl-dialog" id="about-dialog">
+  <div class="dialog-card">
+    <div class="dialog-head"><strong>关于</strong><button data-close="1" aria-label="关闭">×</button></div>
+    <div class="about-body"></div>
+  </div>
+</div>
+
+<div class="mdsl-dialog" id="help-dialog">
+  <div class="dialog-card help-card">
+    <div class="dialog-head"><strong>Markdown / 公式 语法速查</strong><button data-close="1" aria-label="关闭">×</button></div>
+    <div class="help-tabs" id="help-tabs"></div>
+    <div class="help-body" id="help-body"></div>
+    <div class="help-foot">点「插入」会把示例写到编辑器光标处 · F1 或 Ctrl+/ 打开 · Esc 关闭<br>
+      <span class="help-credit" id="help-credit"></span>
+    </div>
+  </div>
+</div>
+
+<!-- MDSL:VENDOR -->
+<!-- MDSL:I18N -->
+<!-- MDSL:APP -->
+<!-- MDSL:NOTICES -->
+</body>
+</html>

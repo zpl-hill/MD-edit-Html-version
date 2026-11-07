@@ -1,0 +1,18 @@
+# WorkBuddy workspace data (local memory / session state) - never publish
+.workbuddy/
+
+# Build & test artifacts
+dist/build.log
+dist/probe*.log
+dist/downloads/
+*.log
+
+# Editor / OS noise
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Dev-machine only dependencies (runtime and release build need none)
+node_modules/

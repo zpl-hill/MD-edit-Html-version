@@ -1,0 +1,10 @@
+{
+  "appTitle": "Markdown Studio Lite",
+  "subtitle": "单文件 · 离线 · 零安装",
+  "ready": "就绪 · 双击即可离线使用",
+  "toc": "目录",
+  "recent": "最近文件",
+  "editor": "Markdown 编辑器",
+  "preview": "实时预览",
+  "offlineNotice": "运行时不依赖 Node / Python / 服务器 / 网络"
+}

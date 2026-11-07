@@ -1,0 +1,10 @@
+{
+  "appTitle": "Markdown Studio Lite",
+  "subtitle": "Single file · Offline · No install",
+  "ready": "Ready · double-click to run offline",
+  "toc": "Table of Contents",
+  "recent": "Recent files",
+  "editor": "Markdown Editor",
+  "preview": "Live Preview",
+  "offlineNotice": "No Node / Python / server / network required at runtime"
+}

@@ -1,0 +1,140 @@
+/* print.css — A4 预分页、打印预览与 @page 规则。
+   页眉页码由 JS 预分页生成（Chromium 不支持 CSS margin boxes，见 SDD ADR-010）。 */
+@page { size: A4 portrait; margin: 15mm 20mm 15mm 20mm; }
+
+/* 「预览内查找」的高亮只服务于屏幕阅读，不能带进打印预览 / PDF */
+.print-source mark.mdsl-find-hit,
+.print-pages mark.mdsl-find-hit {
+  background: transparent !important; color: inherit !important;
+  outline: none !important; padding: 0 !important;
+}
+
+.print-source, .print-pages { display: none; }
+.print-pages { --page-w: 170mm; --page-h: 267mm; }
+
+/* 屏幕上的打印预览 */
+body.mdsl-print-mode .workspace,
+body.mdsl-print-mode .banner { display: none !important; }
+body.mdsl-print-mode .print-pages {
+  display: block;
+  position: fixed;
+  inset: var(--toolbar-h) 0 var(--status-h) 0;
+  overflow: auto;
+  background: #e9edf2;
+  padding: 20px 0 40px;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="dark"] body.mdsl-print-mode .print-pages { background: #10161e; }
+}
+
+.print-page {
+  width: var(--page-w);
+  min-height: var(--page-h);
+  margin: 0 auto 14mm;
+  background: #ffffff;
+  color: #14212e;
+  box-shadow: 0 4px 22px rgba(16, 32, 52, .18);
+  display: flex;
+  flex-direction: column;
+  font-size: 10.5pt;
+  line-height: 1.6;
+}
+.print-header {
+  height: 10mm;
+  flex: 0 0 10mm;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0 0 2mm;
+  border-bottom: .3mm solid #cfd8e2;
+  font-size: 8.5pt;
+  color: #5a6a7b;
+}
+.ph-title { font-weight: 600; color: #14212e; }
+.print-body { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 4mm 0 2mm; }
+.print-footer {
+  height: 9mm;
+  flex: 0 0 9mm;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding-top: 2mm;
+  border-top: .3mm solid #cfd8e2;
+  font-size: 8.5pt;
+  color: #5a6a7b;
+}
+.print-page.oversized .print-body { overflow: visible; }
+
+/* 测量容器：必须参与布局（visibility:hidden 而非 display:none） */
+.mdsl-measure {
+  position: absolute;
+  left: -100000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  font-family: var(--font-sans);
+  font-size: 10.5pt;
+  line-height: 1.6;
+  color: #14212e;
+}
+.mdsl-measure table { border-collapse: collapse; width: 100%; }
+.mdsl-measure th, .mdsl-measure td { border: 1px solid #cfd8e2; padding: 2mm 2.5mm; }
+.mdsl-measure pre { white-space: pre-wrap; font-family: var(--font-mono); font-size: 9pt; }
+.mdsl-measure img { max-width: 100%; }
+.mdsl-measure h1, .mdsl-measure h2, .mdsl-measure h3 { margin: 4mm 0 2mm; }
+
+/* 打印页内的 Markdown 排版（复用但与屏幕尺寸解耦） */
+.print-body h1, .print-body h2, .print-body h3, .print-body h4 { line-height: 1.3; margin: 4mm 0 2mm; }
+.print-body h1 { font-size: 17pt; }
+.print-body h2 { font-size: 14pt; }
+.print-body h3 { font-size: 12pt; }
+.print-body p { margin: 2mm 0; orphans: 3; widows: 3; }
+.print-body table { border-collapse: collapse; width: 100%; margin: 3mm 0; }
+.print-body th, .print-body td { border: .3mm solid #cfd8e2; padding: 1.8mm 2.5mm; }
+.print-body th { background: #f1f4f8; }
+.print-body pre {
+  background: #f5f7f9; border: .3mm solid #dde4eb;
+  padding: 3mm; font-family: var(--font-mono); font-size: 8.5pt;
+  white-space: pre-wrap; word-break: break-word;
+}
+.print-body :not(pre) > code { font-family: var(--font-mono); font-size: 9pt; background: #f5f7f9; }
+.print-body blockquote { border-left: 1mm solid #7b93ab; padding-left: 4mm; margin: 3mm 0; color: #40566c; }
+.print-body img { max-width: 100%; }
+.print-body .mdsl-anchor { display: none; }
+.print-body .mdsl-math-block { text-align: center; margin: 3mm 0; }
+.print-body a { color: #1261a0; text-decoration: none; }
+
+@media print {
+  html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
+  .toolbar, .banner, .workspace, .statusbar,
+  .mdsl-dialog, .mdsl-lightbox, .print-source, .mdsl-measure { display: none !important; }
+  .print-pages {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+    padding: 0 !important;
+    zoom: 1 !important;
+  }
+  .print-page {
+    width: auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    break-after: page;
+    page-break-after: always;
+    color: #000 !important;
+    background: #fff !important;
+  }
+  .print-page:last-child { break-after: auto; page-break-after: auto; }
+  .print-body { overflow: visible !important; height: auto !important; flex: none !important; }
+  .print-header, .print-footer { break-inside: avoid; page-break-inside: avoid; }
+  .print-body h1, .print-body h2, .print-body h3, .print-body h4,
+  .print-body pre, .print-body img, .print-body tr, .print-body .mdsl-math-block {
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  .print-body thead { display: table-header-group; }
+  .print-body a { color: #000 !important; }
+}

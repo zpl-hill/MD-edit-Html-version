@@ -1,0 +1,46 @@
+/* dark.css — 暗色主题变量覆盖（跟随系统或 F8 手动切换）。 */
+:root[data-theme="dark"] {
+  --bg: #121820;
+  --panel: #1a222d;
+  --fg: #dce4ee;
+  --muted: #8b9aad;
+  --border: #2c3846;
+  --accent: #6fb2ec;
+  --accent-soft: #1d3247;
+  --toolbar: #0b1622;
+  --toolbar-fg: #e8eef6;
+  --editor-bg: #1a222d;
+  --editor-fg: #dce4ee;
+  --gutter-bg: #151d27;
+  --gutter-fg: #64748b;
+  --active-line: #202c3a;
+  --selection: #2b4f70;
+  --code-bg: #141c26;
+}
+
+:root[data-theme="dark"] .tbtn { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14); }
+:root[data-theme="dark"] .banner { background: #3a3018; border-color: #6b5720; color: #f0dca6; }
+:root[data-theme="dark"] .banner button { background: #2a2312; border-color: #6b5720; color: #f0dca6; }
+:root[data-theme="dark"] .markdown-body th { background: #202c3a; }
+:root[data-theme="dark"] .token.comment, :root[data-theme="dark"] .token.prolog { color: #7d8b9c; }
+:root[data-theme="dark"] .token.punctuation { color: #aab8c8; }
+:root[data-theme="dark"] .token.string, :root[data-theme="dark"] .token.attr-value { color: #8fceaa; }
+:root[data-theme="dark"] .token.keyword { color: #c79bea; }
+:root[data-theme="dark"] .token.number { color: #e5b567; }
+:root[data-theme="dark"] .token.property, :root[data-theme="dark"] .token.tag { color: #ec8b83; }
+:root[data-theme="dark"] .find-bar { box-shadow: 0 6px 22px rgba(0, 0, 0, .45); }
+:root[data-theme="dark"] .find-bar .tbtn { background: #24303d; color: var(--fg); border-color: var(--border); }
+:root[data-theme="dark"] .find-bar .tbtn:hover { background: var(--accent-soft); }
+:root[data-theme="dark"] .find-bar .find-case.active { background: var(--accent); color: #10202c; }
+:root[data-theme="dark"] .markdown-body mark.mdsl-find-hit { background: #8a6a1c; color: #fff4d6; }
+:root[data-theme="dark"] .markdown-body mark.mdsl-find-hit.current { background: #e09a1c; color: #1a1206; outline-color: #f0b349; }
+:root[data-theme="dark"] .find-count.no-result { color: #f08b8b; }
+
+/* 打印时强制浅色，避免暗色背景浪费墨且影响保真 */
+@media print {
+  :root[data-theme="dark"] {
+    --bg: #ffffff; --panel: #ffffff; --fg: #000000;
+    --editor-bg: #ffffff; --editor-fg: #000000; --code-bg: #f4f4f4;
+    --border: #cccccc; --gutter-bg: #f4f4f4; --accent-soft: #f4f4f4;
+  }
+}
