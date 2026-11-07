@@ -16,6 +16,7 @@
     <small id="app-subtitle">单文件 · 离线 · 零安装</small>
   </div>
   <div class="toolbar-actions">
+    <button class="tbtn" data-action="new" title="新建空白 Markdown 文档 (Alt+N / Ctrl+Alt+N；Ctrl+N 被浏览器占用)">新建</button>
     <button class="tbtn" data-action="open" title="打开 (Ctrl+O)">打开</button>
     <button class="tbtn" data-action="save" title="保存 (Ctrl+S)">保存</button>
     <button class="tbtn" data-action="save-as" title="另存为">另存为</button>
@@ -95,6 +96,19 @@
 
 <div class="print-source" id="print-source" aria-hidden="true"></div>
 <div class="print-pages" id="print-pages"></div>
+
+<div class="mdsl-dialog" id="new-dialog">
+  <div class="dialog-card new-card" role="dialog" aria-modal="true" aria-labelledby="new-dialog-title">
+    <div class="dialog-head"><strong id="new-dialog-title">新建文档</strong><button data-close="1" aria-label="关闭">×</button></div>
+    <p class="new-doc-hint">当前文档 <b class="new-doc-name"></b> 有未保存的更改。新建会清空编辑器并开启一份空白的 <code>untitled.md</code>，请选择如何处理当前内容：</p>
+    <div class="new-doc-actions">
+      <button class="tbtn new-primary" type="button" data-new="save">保存后新建</button>
+      <button class="tbtn" type="button" data-new="discard">不保存，直接新建</button>
+      <button class="tbtn" type="button" data-new="cancel">取消</button>
+    </div>
+    <p class="new-doc-note">「保存」会下载 .md 文件到本机。无论选哪种，旧文档的自动保存草稿都会被清除，避免刷新后恢复出上一份内容；已保存过的文件仍可从「最近文件」重新打开。</p>
+  </div>
+</div>
 
 <div class="mdsl-dialog" id="about-dialog">
   <div class="dialog-card">

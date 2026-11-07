@@ -6,6 +6,7 @@ export function createEditor(options) {
   const listeners = [];
   const scrollListeners = [];
   const themeCompartment = new CM.Compartment();
+  let currentTheme = 'light';
   const themeSpec = {
     '&': { color: 'var(--editor-fg)', backgroundColor: 'var(--editor-bg)', height: '100%' },
     '.cm-content': { caretColor: 'var(--editor-fg)', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-editor)', lineHeight: '1.65' },
@@ -17,41 +18,46 @@ export function createEditor(options) {
     '.cm-scroller': { fontFamily: 'var(--font-mono)' }
   };
 
+  /* 扩展集中在一处，reset() 重建 EditorState 时可复用，保证主题/搜索/高亮等配置不丢失。 */
+  function makeExtensions(themeMode) {
+    return [
+      CM.lineNumbers(),
+      CM.highlightActiveLineGutter(),
+      CM.highlightSpecialChars(),
+      CM.history(),
+      CM.foldGutter(),
+      CM.drawSelection(),
+      CM.dropCursor(),
+      CM.EditorState.allowMultipleSelections.of(true),
+      CM.indentOnInput(),
+      CM.bracketMatching(),
+      CM.rectangularSelection(),
+      CM.crosshairCursor(),
+      CM.highlightActiveLine(),
+      CM.highlightSelectionMatches(),
+      CM.keymap.of([
+        ...CM.defaultKeymap, ...CM.historyKeymap,
+        ...CM.foldKeymap, ...CM.searchKeymap,
+        CM.indentWithTab
+      ]),
+      CM.markdown({ base: CM.markdownLanguage }),
+      CM.syntaxHighlighting(CM.defaultHighlightStyle, { fallback: true }),
+      CM.search({ top: true }),
+      CM.EditorView.lineWrapping,
+      themeCompartment.of(CM.EditorView.theme(themeSpec, { dark: themeMode === 'dark' })),
+      CM.EditorView.updateListener.of(update => {
+        if (update.docChanged) {
+          const text = view.state.doc.toString();
+          listeners.forEach(fn => { try { fn(text); } catch (e) { console.error(e); } });
+        }
+      })
+    ];
+  }
+
   const view = new CM.EditorView({
     state: CM.EditorState.create({
       doc: String(options.initial || ''),
-      extensions: [
-        CM.lineNumbers(),
-        CM.highlightActiveLineGutter(),
-        CM.highlightSpecialChars(),
-        CM.history(),
-        CM.foldGutter(),
-        CM.drawSelection(),
-        CM.dropCursor(),
-        CM.EditorState.allowMultipleSelections.of(true),
-        CM.indentOnInput(),
-        CM.bracketMatching(),
-        CM.rectangularSelection(),
-        CM.crosshairCursor(),
-        CM.highlightActiveLine(),
-        CM.highlightSelectionMatches(),
-        CM.keymap.of([
-          ...CM.defaultKeymap, ...CM.historyKeymap,
-          ...CM.foldKeymap, ...CM.searchKeymap,
-          CM.indentWithTab
-        ]),
-        CM.markdown({ base: CM.markdownLanguage }),
-        CM.syntaxHighlighting(CM.defaultHighlightStyle, { fallback: true }),
-        CM.search({ top: true }),
-        CM.EditorView.lineWrapping,
-        themeCompartment.of(CM.EditorView.theme(themeSpec, { dark: false })),
-        CM.EditorView.updateListener.of(update => {
-          if (update.docChanged) {
-            const text = view.state.doc.toString();
-            listeners.forEach(fn => { try { fn(text); } catch (e) { console.error(e); } });
-          }
-        })
-      ]
+      extensions: makeExtensions(currentTheme)
     }),
     parent: options.parent
   });
@@ -70,6 +76,16 @@ export function createEditor(options) {
     setText(text) {
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: String(text == null ? '' : text) } });
     },
+    /* 新建文档用：整体替换 EditorState。setText() 只发一次 change，会保留 undo 历史，
+       Ctrl+Z 能把上一份文档「撤」回来；setState 会连带清空 history / 选区 / 搜索面板状态。 */
+    reset(text) {
+      view.setState(CM.EditorState.create({
+        doc: String(text == null ? '' : text),
+        extensions: makeExtensions(currentTheme)
+      }));
+      if (view.scrollDOM) view.scrollDOM.scrollTop = 0;
+      view.focus();
+    },
     insertText(text) { view.dispatch(view.state.replaceSelection(String(text))); view.focus(); },
     focus() { view.focus(); },
     onChange(fn) { listeners.push(fn); return () => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); }; },
@@ -79,7 +95,8 @@ export function createEditor(options) {
       return el.scrollTop / Math.max(1, el.scrollHeight - el.clientHeight);
     },
     setTheme(mode) {
-      view.dispatch({ effects: themeCompartment.reconfigure(CM.EditorView.theme(themeSpec, { dark: mode === 'dark' })) });
+      currentTheme = mode === 'dark' ? 'dark' : 'light';
+      view.dispatch({ effects: themeCompartment.reconfigure(CM.EditorView.theme(themeSpec, { dark: currentTheme === 'dark' })) });
     },
     refresh() { view.requestMeasure(); }
   };

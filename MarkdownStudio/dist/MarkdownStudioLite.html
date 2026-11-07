@@ -270,6 +270,27 @@ body.view-reader .preview-pane .pane-title { justify-content: center; }
 .help-credit { display: inline-block; margin-top: 5px; color: var(--muted); }
 .help-credit a { font-size: inherit; }
 
+/* ---------- 新建文档确认框 ----------
+   dark.css 中 :root[data-theme="dark"] .tbtn 特异性为 (0,3,0) 且排在 app.css 之后，
+   故这里统一用 :root .mdsl-dialog .new-card .tbtn (0,4,0)，
+   避免深色主题把确认框按钮染回工具栏配色；宽度也用双 class 压过 .dialog-card。 */
+.dialog-card.new-card { width: min(540px, 92vw); }
+.new-card .dialog-head { margin-bottom: calc(12px * var(--ui-scale)); }
+.new-doc-hint { font-size: var(--fs-normal); line-height: 1.75; margin: 0 0 calc(18px * var(--ui-scale)); }
+.new-doc-hint b { color: var(--accent); }
+.new-doc-hint code { font-family: var(--font-mono); font-size: .92em; background: var(--bg); border: 1px solid var(--border); border-radius: 3px; padding: 1px 4px; }
+.new-doc-actions { display: flex; gap: calc(10px * var(--ui-scale)); flex-wrap: wrap; }
+:root .mdsl-dialog .new-card .tbtn {
+  background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 5px; font-family: var(--font-sans); font-size: var(--fs-small);
+  padding: calc(8px * var(--ui-scale)) calc(14px * var(--ui-scale)); cursor: pointer;
+}
+:root .mdsl-dialog .new-card .tbtn:hover { background: var(--accent-soft); border-color: var(--accent); }
+:root .mdsl-dialog .new-card .tbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:root .mdsl-dialog .new-card .tbtn.new-primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+:root .mdsl-dialog .new-card .tbtn.new-primary:hover { filter: brightness(1.08); }
+.new-doc-note { font-size: var(--fs-tiny); color: var(--muted); line-height: 1.7; margin: calc(16px * var(--ui-scale)) 0 0; }
+
 /* ---------- Status bar ---------- */
 .statusbar {
   height: var(--status-h);
@@ -629,6 +650,7 @@ body.mdsl-print-mode .print-pages {
     <small id="app-subtitle">单文件 · 离线 · 零安装</small>
   </div>
   <div class="toolbar-actions">
+    <button class="tbtn" data-action="new" title="新建空白 Markdown 文档 (Alt+N / Ctrl+Alt+N；Ctrl+N 被浏览器占用)">新建</button>
     <button class="tbtn" data-action="open" title="打开 (Ctrl+O)">打开</button>
     <button class="tbtn" data-action="save" title="保存 (Ctrl+S)">保存</button>
     <button class="tbtn" data-action="save-as" title="另存为">另存为</button>
@@ -708,6 +730,19 @@ body.mdsl-print-mode .print-pages {
 
 <div class="print-source" id="print-source" aria-hidden="true"></div>
 <div class="print-pages" id="print-pages"></div>
+
+<div class="mdsl-dialog" id="new-dialog">
+  <div class="dialog-card new-card" role="dialog" aria-modal="true" aria-labelledby="new-dialog-title">
+    <div class="dialog-head"><strong id="new-dialog-title">新建文档</strong><button data-close="1" aria-label="关闭">×</button></div>
+    <p class="new-doc-hint">当前文档 <b class="new-doc-name"></b> 有未保存的更改。新建会清空编辑器并开启一份空白的 <code>untitled.md</code>，请选择如何处理当前内容：</p>
+    <div class="new-doc-actions">
+      <button class="tbtn new-primary" type="button" data-new="save">保存后新建</button>
+      <button class="tbtn" type="button" data-new="discard">不保存，直接新建</button>
+      <button class="tbtn" type="button" data-new="cancel">取消</button>
+    </div>
+    <p class="new-doc-note">「保存」会下载 .md 文件到本机。无论选哪种，旧文档的自动保存草稿都会被清除，避免刷新后恢复出上一份内容；已保存过的文件仍可从「最近文件」重新打开。</p>
+  </div>
+</div>
 
 <div class="mdsl-dialog" id="about-dialog">
   <div class="dialog-card">
@@ -31401,6 +31436,7 @@ const HELP = [
       {
         title: '快捷键',
         rows: [
+          { syntax: '新建 (Alt+N)', desc: '工具栏「新建」或 Alt+N / Ctrl+Alt+N 创建空白 .md 文档；有未保存更改时会先询问是否保存。Ctrl+N 是浏览器保留快捷键，网页无法拦截', insert: null },
           { syntax: 'Ctrl+O / Ctrl+S', desc: '打开 .md 文件 / 保存并下载 .md 文件', insert: null },
           { syntax: 'Ctrl+F / Ctrl+H', desc: '编辑器内搜索 / 替换；阅读模式下 Ctrl+F 改为在预览内容里查找，Ctrl+H 会自动切回可编辑视图', insert: null },
           { syntax: '阅读模式查找', desc: 'Ctrl+F 打开查找条：输入即高亮、Enter / Shift+Enter 跳上下一个、Aa 区分大小写、Esc 关闭', insert: null },
@@ -31412,6 +31448,7 @@ const HELP = [
       {
         title: '数据与保存',
         rows: [
+          { syntax: '新建文档', desc: '新建会换用独立文档编号并清除旧草稿，旧内容不会在刷新时恢复回来；浏览器标签页标题会显示当前文件名', insert: null },
           { syntax: '30 秒自动保存', desc: '正文快照写入 IndexedDB；关闭或切走时还会写一份压缩草稿', insert: null },
           { syntax: '刷新后恢复', desc: '若发现未保存草稿，顶部会出现横幅，点「恢复」即可还原；点「丢弃」则清空', insert: null },
           { syntax: '最近文件', desc: '左栏下方列出最近 10 个文件，点击可从本机缓存重新打开正文', insert: null },
@@ -31974,6 +32011,7 @@ function createEditor(options) {
   const listeners = [];
   const scrollListeners = [];
   const themeCompartment = new CM.Compartment();
+  let currentTheme = 'light';
   const themeSpec = {
     '&': { color: 'var(--editor-fg)', backgroundColor: 'var(--editor-bg)', height: '100%' },
     '.cm-content': { caretColor: 'var(--editor-fg)', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-editor)', lineHeight: '1.65' },
@@ -31985,41 +32023,46 @@ function createEditor(options) {
     '.cm-scroller': { fontFamily: 'var(--font-mono)' }
   };
 
+  /* 扩展集中在一处，reset() 重建 EditorState 时可复用，保证主题/搜索/高亮等配置不丢失。 */
+  function makeExtensions(themeMode) {
+    return [
+      CM.lineNumbers(),
+      CM.highlightActiveLineGutter(),
+      CM.highlightSpecialChars(),
+      CM.history(),
+      CM.foldGutter(),
+      CM.drawSelection(),
+      CM.dropCursor(),
+      CM.EditorState.allowMultipleSelections.of(true),
+      CM.indentOnInput(),
+      CM.bracketMatching(),
+      CM.rectangularSelection(),
+      CM.crosshairCursor(),
+      CM.highlightActiveLine(),
+      CM.highlightSelectionMatches(),
+      CM.keymap.of([
+        ...CM.defaultKeymap, ...CM.historyKeymap,
+        ...CM.foldKeymap, ...CM.searchKeymap,
+        CM.indentWithTab
+      ]),
+      CM.markdown({ base: CM.markdownLanguage }),
+      CM.syntaxHighlighting(CM.defaultHighlightStyle, { fallback: true }),
+      CM.search({ top: true }),
+      CM.EditorView.lineWrapping,
+      themeCompartment.of(CM.EditorView.theme(themeSpec, { dark: themeMode === 'dark' })),
+      CM.EditorView.updateListener.of(update => {
+        if (update.docChanged) {
+          const text = view.state.doc.toString();
+          listeners.forEach(fn => { try { fn(text); } catch (e) { console.error(e); } });
+        }
+      })
+    ];
+  }
+
   const view = new CM.EditorView({
     state: CM.EditorState.create({
       doc: String(options.initial || ''),
-      extensions: [
-        CM.lineNumbers(),
-        CM.highlightActiveLineGutter(),
-        CM.highlightSpecialChars(),
-        CM.history(),
-        CM.foldGutter(),
-        CM.drawSelection(),
-        CM.dropCursor(),
-        CM.EditorState.allowMultipleSelections.of(true),
-        CM.indentOnInput(),
-        CM.bracketMatching(),
-        CM.rectangularSelection(),
-        CM.crosshairCursor(),
-        CM.highlightActiveLine(),
-        CM.highlightSelectionMatches(),
-        CM.keymap.of([
-          ...CM.defaultKeymap, ...CM.historyKeymap,
-          ...CM.foldKeymap, ...CM.searchKeymap,
-          CM.indentWithTab
-        ]),
-        CM.markdown({ base: CM.markdownLanguage }),
-        CM.syntaxHighlighting(CM.defaultHighlightStyle, { fallback: true }),
-        CM.search({ top: true }),
-        CM.EditorView.lineWrapping,
-        themeCompartment.of(CM.EditorView.theme(themeSpec, { dark: false })),
-        CM.EditorView.updateListener.of(update => {
-          if (update.docChanged) {
-            const text = view.state.doc.toString();
-            listeners.forEach(fn => { try { fn(text); } catch (e) { console.error(e); } });
-          }
-        })
-      ]
+      extensions: makeExtensions(currentTheme)
     }),
     parent: options.parent
   });
@@ -32038,6 +32081,16 @@ function createEditor(options) {
     setText(text) {
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: String(text == null ? '' : text) } });
     },
+    /* 新建文档用：整体替换 EditorState。setText() 只发一次 change，会保留 undo 历史，
+       Ctrl+Z 能把上一份文档「撤」回来；setState 会连带清空 history / 选区 / 搜索面板状态。 */
+    reset(text) {
+      view.setState(CM.EditorState.create({
+        doc: String(text == null ? '' : text),
+        extensions: makeExtensions(currentTheme)
+      }));
+      if (view.scrollDOM) view.scrollDOM.scrollTop = 0;
+      view.focus();
+    },
     insertText(text) { view.dispatch(view.state.replaceSelection(String(text))); view.focus(); },
     focus() { view.focus(); },
     onChange(fn) { listeners.push(fn); return () => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); }; },
@@ -32047,7 +32100,8 @@ function createEditor(options) {
       return el.scrollTop / Math.max(1, el.scrollHeight - el.clientHeight);
     },
     setTheme(mode) {
-      view.dispatch({ effects: themeCompartment.reconfigure(CM.EditorView.theme(themeSpec, { dark: mode === 'dark' })) });
+      currentTheme = mode === 'dark' ? 'dark' : 'light';
+      view.dispatch({ effects: themeCompartment.reconfigure(CM.EditorView.theme(themeSpec, { dark: currentTheme === 'dark' })) });
     },
     refresh() { view.requestMeasure(); }
   };
@@ -32600,8 +32654,17 @@ function createFileService(options) {
     return stem + (extension || '.md');
   }
 
+  /* 新建空白文档：把文件名与文档 id 复位回初始草稿槽。
+     这是单文档工具（无多标签页），固定回 'draft' 可让 30 秒自动保存与刷新恢复
+     继续命中同一个槽位；旧草稿由 createNewDocument() 显式清除。 */
+  function reset(name) {
+    currentName = name || 'untitled.md';
+    currentId = 'draft';
+    return currentId;
+  }
+
   return {
-    open, openDropped, save, saveAs, baseName, downloadBlob,
+    open, openDropped, save, saveAs, baseName, reset, downloadBlob,
     getName: () => currentName,
     getId: () => currentId,
     setName: name => { currentName = name || currentName; },
@@ -33545,6 +33608,11 @@ function formatSize(bytes) {
   return (bytes / 1024 / 1024).toFixed(1) + ' MB';
 }
 
+/* 浏览器标签页显示当前文档名，新建 / 打开 / 另存为后都能一眼看出在编辑哪份文件。 */
+function syncTitle(name) {
+  document.title = 'Markdown Studio Lite — ' + (name || fileService.getName());
+}
+
 function banner(message, actions) {
   const root = $('#banner');
   if (!root) return;
@@ -33600,12 +33668,13 @@ const fileService = createFileService({
     currentDocId = result.id;
     touchRecent({ id: result.id, name: result.name, size: result.size, source: 'file' });
     renderRecent();
+    syncTitle(result.name);
     setStatus('已打开 ' + result.name);
   },
   onLimit: size => window.confirm('文件约 ' + formatSize(size) + '，超出设计容量 20 MB，可能卡顿。仍要继续吗？')
 });
 
-editorRef = createEditor({ parent: $('#editor-host'), initial: SAMPLE });
+editorRef = createEditor({ parent: $('#editor-host'), initial: getPref('startupBlank', false) ? '' : SAMPLE });
 const parser = createParser();
 
 const viewer = createPreviewController({
@@ -33716,6 +33785,7 @@ async function saveSnapshot(trigger) {
 async function saveFile() {
   const text = editorRef.getText();
   const name = fileService.save(text);
+  syncTitle(name);
   try {
     await storage.putDoc({ id: currentDocId, name, content: text, updatedAt: Date.now(), version: 1 });
     await storage.clearSnapshots(currentDocId);
@@ -33730,7 +33800,7 @@ async function saveFile() {
 
 function saveAs() {
   const name = fileService.saveAs(editorRef.getText());
-  if (name) { setStatus('已另存为 ' + name); setSaveStatus('已保存 ' + timeNow()); }
+  if (name) { syncTitle(name); setStatus('已另存为 ' + name); setSaveStatus('已保存 ' + timeNow()); }
 }
 
 async function openFile() {
@@ -33741,6 +33811,61 @@ async function openFile() {
   updateCounts();
   dirty = false;
   setSaveStatus('已打开 ' + timeNow());
+}
+
+/* ---------- 新建文档 ----------
+   绝对不能只是「清空编辑器」：IndexedDB 快照、全局紧急草稿、恢复横幅都还指向旧内容，
+   任何一处没处理，刷新后旧文档都会被恢复回来；Ctrl+Z 也不该把上一份文档撤回来
+   （由 editor.reset() 重建 EditorState 保证）。
+   文档 id 复位回固定的 'draft' 槽位（单文档工具无多标签页），这样 30 秒自动保存
+   与启动时的 restoreDraft() 仍命中同一处；旧文档留在本机存储与「最近文件」里。 */
+async function createNewDocument() {
+  const oldId = currentDocId;
+  currentDocId = fileService.reset('untitled.md');
+  // 旧文档（以及此前未命名草稿）的快照都要清，否则刷新后会被恢复出来。
+  try { await storage.clearSnapshots(oldId); } catch (e) { /* 存储不可用时忽略 */ }
+  if (oldId !== currentDocId) {
+    try { await storage.clearSnapshots(currentDocId); } catch (e) { /* ignore */ }
+  }
+  clearEmergencyDraft();
+  hideBanner();
+  setPref('startupBlank', true);   // 以后启动默认空白，不再把示例文档当成新建的文档
+
+  editorRef.reset('');
+  viewer.render('');
+  updateCounts('');
+  $('#preview').scrollTop = 0;
+
+  // 与旧内容相关的浮层 / 打印页一并收掉
+  search.close();
+  if (previewSearch) previewSearch.close();
+  imageViewer.close();
+  if (printController.getMode() === 'print') printController.setMode('read');
+  $('#print-pages').replaceChildren();
+  $('#print-source').replaceChildren();
+
+  // 阅读模式下编辑器被隐藏，新建之后必须回到能立刻写字的视图
+  if (viewMode === 'reader') applyView('split', true);
+
+  syncTitle();
+  editorRef.focus();
+  dirty = false;                       // 放在最后，压住 reset 可能触发的同步回调
+  setSaveStatus('新文档');
+  setStatus('已新建空白文档 ' + fileService.getName() + ' · 开始输入，Ctrl+S 可保存为 .md 文件');
+}
+
+function askBeforeNew() {
+  const dialog = $('#new-dialog');
+  if (!dialog) return;
+  dialog.querySelector('.new-doc-name').textContent = fileService.getName();
+  dialog.classList.add('open');
+  const primary = dialog.querySelector('[data-new="save"]');
+  if (primary) primary.focus();
+}
+
+function requestNew() {
+  if (dirty) { askBeforeNew(); return; }
+  createNewDocument();
 }
 
 async function exportDocx() {
@@ -33799,6 +33924,7 @@ $('#recent-list').addEventListener('click', async event => {
   viewer.render(doc.content);
   fileService.setName(doc.name);
   fileService.setId(id);
+  syncTitle(doc.name);
   currentDocId = id;
   updateCounts();
   dirty = false;
@@ -33822,7 +33948,7 @@ async function restoreDraft() {
       label: '恢复', run: () => {
         editorRef.setText(snapshot.content);
         viewer.render(snapshot.content);
-        if (snapshot.name) fileService.setName(snapshot.name);
+        if (snapshot.name) { fileService.setName(snapshot.name); syncTitle(snapshot.name); }
         updateCounts();
         dirty = true;
         hideBanner();
@@ -33888,6 +34014,9 @@ function showAbout() {
 }
 
 const shortcuts = createShortcutRegistry(window);
+/* Ctrl+N 是 Chrome/Edge 保留快捷键（开新窗口），网页无法拦截，故用 Alt+N / Ctrl+Alt+N。 */
+shortcuts.register('Alt+N', requestNew);
+shortcuts.register('Ctrl+Alt+N', requestNew);
 shortcuts.register('Ctrl+O', openFile);
 shortcuts.register('Ctrl+S', saveFile);
 shortcuts.register('Ctrl+Shift+S', saveAs);
@@ -33905,7 +34034,8 @@ $('#toolbar').addEventListener('click', event => {
   const button = event.target.closest('[data-action]');
   if (!button) return;
   const action = button.getAttribute('data-action');
-  if (action === 'open') openFile();
+  if (action === 'new') requestNew();
+  else if (action === 'open') openFile();
   else if (action === 'save') saveFile();
   else if (action === 'save-as') saveAs();
   else if (action === 'pdf') printController.print();
@@ -33966,6 +34096,25 @@ $('#about-dialog').addEventListener('click', async event => {
   }
 });
 
+/* 新建确认框：有未保存更改时给三条路——保存后新建 / 直接新建 / 取消。 */
+$('#new-dialog').addEventListener('click', async event => {
+  const dialog = $('#new-dialog');
+  const choice = event.target.closest('[data-new]');
+  if (choice) {
+    const action = choice.getAttribute('data-new');
+    dialog.classList.remove('open');
+    if (action === 'cancel') { setStatus('已取消新建，当前文档保持不变'); return; }
+    if (action === 'save') await saveFile();
+    await createNewDocument();
+    return;
+  }
+  if (event.target === dialog || event.target.closest('[data-close]')) dialog.classList.remove('open');
+});
+window.addEventListener('keydown', event => {
+  const dialog = $('#new-dialog');
+  if (event.key === 'Escape' && dialog && dialog.classList.contains('open')) dialog.classList.remove('open');
+});
+
 window.addEventListener('dragover', event => event.preventDefault());
 window.addEventListener('drop', async event => {
   event.preventDefault();
@@ -33998,6 +34147,7 @@ if (helpCredit) {
 }
 
 viewer.render(editorRef.getText());
+syncTitle();
 updateCounts();
 renderRecent();
 applyView(getPref('viewMode', 'split'), false);

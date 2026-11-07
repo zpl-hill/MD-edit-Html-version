@@ -60,8 +60,17 @@ export function createFileService(options) {
     return stem + (extension || '.md');
   }
 
+  /* 新建空白文档：把文件名与文档 id 复位回初始草稿槽。
+     这是单文档工具（无多标签页），固定回 'draft' 可让 30 秒自动保存与刷新恢复
+     继续命中同一个槽位；旧草稿由 createNewDocument() 显式清除。 */
+  function reset(name) {
+    currentName = name || 'untitled.md';
+    currentId = 'draft';
+    return currentId;
+  }
+
   return {
-    open, openDropped, save, saveAs, baseName, downloadBlob,
+    open, openDropped, save, saveAs, baseName, reset, downloadBlob,
     getName: () => currentName,
     getId: () => currentId,
     setName: name => { currentName = name || currentName; },

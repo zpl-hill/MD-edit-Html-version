@@ -110,6 +110,7 @@ const HELP = [
       {
         title: '快捷键',
         rows: [
+          { syntax: '新建 (Alt+N)', desc: '工具栏「新建」或 Alt+N / Ctrl+Alt+N 创建空白 .md 文档；有未保存更改时会先询问是否保存。Ctrl+N 是浏览器保留快捷键，网页无法拦截', insert: null },
           { syntax: 'Ctrl+O / Ctrl+S', desc: '打开 .md 文件 / 保存并下载 .md 文件', insert: null },
           { syntax: 'Ctrl+F / Ctrl+H', desc: '编辑器内搜索 / 替换；阅读模式下 Ctrl+F 改为在预览内容里查找，Ctrl+H 会自动切回可编辑视图', insert: null },
           { syntax: '阅读模式查找', desc: 'Ctrl+F 打开查找条：输入即高亮、Enter / Shift+Enter 跳上下一个、Aa 区分大小写、Esc 关闭', insert: null },
@@ -121,6 +122,7 @@ const HELP = [
       {
         title: '数据与保存',
         rows: [
+          { syntax: '新建文档', desc: '新建会换用独立文档编号并清除旧草稿，旧内容不会在刷新时恢复回来；浏览器标签页标题会显示当前文件名', insert: null },
           { syntax: '30 秒自动保存', desc: '正文快照写入 IndexedDB；关闭或切走时还会写一份压缩草稿', insert: null },
           { syntax: '刷新后恢复', desc: '若发现未保存草稿，顶部会出现横幅，点「恢复」即可还原；点「丢弃」则清空', insert: null },
           { syntax: '最近文件', desc: '左栏下方列出最近 10 个文件，点击可从本机缓存重新打开正文', insert: null },

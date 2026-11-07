@@ -111,6 +111,11 @@ function formatSize(bytes) {
   return (bytes / 1024 / 1024).toFixed(1) + ' MB';
 }
 
+/* 浏览器标签页显示当前文档名，新建 / 打开 / 另存为后都能一眼看出在编辑哪份文件。 */
+function syncTitle(name) {
+  document.title = 'Markdown Studio Lite — ' + (name || fileService.getName());
+}
+
 function banner(message, actions) {
   const root = $('#banner');
   if (!root) return;
@@ -166,12 +171,13 @@ const fileService = createFileService({
     currentDocId = result.id;
     touchRecent({ id: result.id, name: result.name, size: result.size, source: 'file' });
     renderRecent();
+    syncTitle(result.name);
     setStatus('已打开 ' + result.name);
   },
   onLimit: size => window.confirm('文件约 ' + formatSize(size) + '，超出设计容量 20 MB，可能卡顿。仍要继续吗？')
 });
 
-editorRef = createEditor({ parent: $('#editor-host'), initial: SAMPLE });
+editorRef = createEditor({ parent: $('#editor-host'), initial: getPref('startupBlank', false) ? '' : SAMPLE });
 const parser = createParser();
 
 const viewer = createPreviewController({
@@ -282,6 +288,7 @@ async function saveSnapshot(trigger) {
 async function saveFile() {
   const text = editorRef.getText();
   const name = fileService.save(text);
+  syncTitle(name);
   try {
     await storage.putDoc({ id: currentDocId, name, content: text, updatedAt: Date.now(), version: 1 });
     await storage.clearSnapshots(currentDocId);
@@ -296,7 +303,7 @@ async function saveFile() {
 
 function saveAs() {
   const name = fileService.saveAs(editorRef.getText());
-  if (name) { setStatus('已另存为 ' + name); setSaveStatus('已保存 ' + timeNow()); }
+  if (name) { syncTitle(name); setStatus('已另存为 ' + name); setSaveStatus('已保存 ' + timeNow()); }
 }
 
 async function openFile() {
@@ -307,6 +314,61 @@ async function openFile() {
   updateCounts();
   dirty = false;
   setSaveStatus('已打开 ' + timeNow());
+}
+
+/* ---------- 新建文档 ----------
+   绝对不能只是「清空编辑器」：IndexedDB 快照、全局紧急草稿、恢复横幅都还指向旧内容，
+   任何一处没处理，刷新后旧文档都会被恢复回来；Ctrl+Z 也不该把上一份文档撤回来
+   （由 editor.reset() 重建 EditorState 保证）。
+   文档 id 复位回固定的 'draft' 槽位（单文档工具无多标签页），这样 30 秒自动保存
+   与启动时的 restoreDraft() 仍命中同一处；旧文档留在本机存储与「最近文件」里。 */
+async function createNewDocument() {
+  const oldId = currentDocId;
+  currentDocId = fileService.reset('untitled.md');
+  // 旧文档（以及此前未命名草稿）的快照都要清，否则刷新后会被恢复出来。
+  try { await storage.clearSnapshots(oldId); } catch (e) { /* 存储不可用时忽略 */ }
+  if (oldId !== currentDocId) {
+    try { await storage.clearSnapshots(currentDocId); } catch (e) { /* ignore */ }
+  }
+  clearEmergencyDraft();
+  hideBanner();
+  setPref('startupBlank', true);   // 以后启动默认空白，不再把示例文档当成新建的文档
+
+  editorRef.reset('');
+  viewer.render('');
+  updateCounts('');
+  $('#preview').scrollTop = 0;
+
+  // 与旧内容相关的浮层 / 打印页一并收掉
+  search.close();
+  if (previewSearch) previewSearch.close();
+  imageViewer.close();
+  if (printController.getMode() === 'print') printController.setMode('read');
+  $('#print-pages').replaceChildren();
+  $('#print-source').replaceChildren();
+
+  // 阅读模式下编辑器被隐藏，新建之后必须回到能立刻写字的视图
+  if (viewMode === 'reader') applyView('split', true);
+
+  syncTitle();
+  editorRef.focus();
+  dirty = false;                       // 放在最后，压住 reset 可能触发的同步回调
+  setSaveStatus('新文档');
+  setStatus('已新建空白文档 ' + fileService.getName() + ' · 开始输入，Ctrl+S 可保存为 .md 文件');
+}
+
+function askBeforeNew() {
+  const dialog = $('#new-dialog');
+  if (!dialog) return;
+  dialog.querySelector('.new-doc-name').textContent = fileService.getName();
+  dialog.classList.add('open');
+  const primary = dialog.querySelector('[data-new="save"]');
+  if (primary) primary.focus();
+}
+
+function requestNew() {
+  if (dirty) { askBeforeNew(); return; }
+  createNewDocument();
 }
 
 async function exportDocx() {
@@ -365,6 +427,7 @@ $('#recent-list').addEventListener('click', async event => {
   viewer.render(doc.content);
   fileService.setName(doc.name);
   fileService.setId(id);
+  syncTitle(doc.name);
   currentDocId = id;
   updateCounts();
   dirty = false;
@@ -388,7 +451,7 @@ async function restoreDraft() {
       label: '恢复', run: () => {
         editorRef.setText(snapshot.content);
         viewer.render(snapshot.content);
-        if (snapshot.name) fileService.setName(snapshot.name);
+        if (snapshot.name) { fileService.setName(snapshot.name); syncTitle(snapshot.name); }
         updateCounts();
         dirty = true;
         hideBanner();
@@ -454,6 +517,9 @@ function showAbout() {
 }
 
 const shortcuts = createShortcutRegistry(window);
+/* Ctrl+N 是 Chrome/Edge 保留快捷键（开新窗口），网页无法拦截，故用 Alt+N / Ctrl+Alt+N。 */
+shortcuts.register('Alt+N', requestNew);
+shortcuts.register('Ctrl+Alt+N', requestNew);
 shortcuts.register('Ctrl+O', openFile);
 shortcuts.register('Ctrl+S', saveFile);
 shortcuts.register('Ctrl+Shift+S', saveAs);
@@ -471,7 +537,8 @@ $('#toolbar').addEventListener('click', event => {
   const button = event.target.closest('[data-action]');
   if (!button) return;
   const action = button.getAttribute('data-action');
-  if (action === 'open') openFile();
+  if (action === 'new') requestNew();
+  else if (action === 'open') openFile();
   else if (action === 'save') saveFile();
   else if (action === 'save-as') saveAs();
   else if (action === 'pdf') printController.print();
@@ -532,6 +599,25 @@ $('#about-dialog').addEventListener('click', async event => {
   }
 });
 
+/* 新建确认框：有未保存更改时给三条路——保存后新建 / 直接新建 / 取消。 */
+$('#new-dialog').addEventListener('click', async event => {
+  const dialog = $('#new-dialog');
+  const choice = event.target.closest('[data-new]');
+  if (choice) {
+    const action = choice.getAttribute('data-new');
+    dialog.classList.remove('open');
+    if (action === 'cancel') { setStatus('已取消新建，当前文档保持不变'); return; }
+    if (action === 'save') await saveFile();
+    await createNewDocument();
+    return;
+  }
+  if (event.target === dialog || event.target.closest('[data-close]')) dialog.classList.remove('open');
+});
+window.addEventListener('keydown', event => {
+  const dialog = $('#new-dialog');
+  if (event.key === 'Escape' && dialog && dialog.classList.contains('open')) dialog.classList.remove('open');
+});
+
 window.addEventListener('dragover', event => event.preventDefault());
 window.addEventListener('drop', async event => {
   event.preventDefault();
@@ -564,6 +650,7 @@ if (helpCredit) {
 }
 
 viewer.render(editorRef.getText());
+syncTitle();
 updateCounts();
 renderRecent();
 applyView(getPref('viewMode', 'split'), false);
