@@ -718,6 +718,28 @@ flowchart TD
 
 `G:/程序/GRR/tools/build-release.ps1` 已验证此模式可行（1.7 MB 单文件、`file://` 双击可用、运行时零网络请求）。本设计复用其骨架，扩展了三点：模块白名单校验、业务段网络 API 扫描、许可证块存在性断言。
 
+### 9.4 桌面版构建（V1.6 新增）
+
+单 HTML 构建完成后会自动复制到 `desktop/app/index.html`（仅在 `desktop/` 存在时），再由 Tauri 把它内嵌进 exe。两步都是本机构建，产物不依赖 Node / 服务器 / 网络。
+
+```powershell
+# 1) 重建单 HTML（同时同步到 desktop/app）
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\build-release.ps1
+
+# 2) 编译桌面版（首次需下载 crate，之后增量约 2 分钟）
+cd desktop
+node node_modules\@tauri-apps\cli\tauri.js build
+# 产物：desktop\src-tauri\target\release\MarkdownStudioLite.exe
+```
+
+| 项 | 值 |
+|---|---|
+| 构建机依赖 | Rust（MSVC target）+ MSVC 链接器 + Windows SDK + Node |
+| 运行时依赖 | 系统 WebView2（Win11 自带） |
+| 产物 | 单个 `MarkdownStudioLite.exe`，6.8 MB |
+| 前端资源 | 内嵌进 exe，无外置文件 |
+| 图标 | `tools/make-icon.cjs` 纯 Node 生成（不走第三方库） |
+
 ---
 
 ## 10. 性能设计
@@ -867,17 +889,29 @@ V1 中所有内置模块**通过同一注册表挂载**，从而验证扩展点�
 
 ---
 
-## 16. Tauri 2.x 迁移路径
+## 16. 桌面版（Tauri 2.x）实现
 
-| 替换点 | Web 版实现 | Tauri 版实现 | 影响范围 |
+原计划把 Tauri 列为「未来迁移路径」，V1.6 已落地为**可选的第二种分发形态**，与单 HTML 并存：
+同一份 `dist/MarkdownStudioLite.html` 既能在浏览器里双击运行，也能被桌面壳直接加载。
+
+| 替换点 | Web 版实现 | 桌面版实现 | 影响范围 |
 |---|---|---|---|
-| 存储 | `IndexedDbBackend` | `FsStorageAdapter`（`@tauri-apps/plugin-fs`） | 仅 L4 |
-| 文件打开/保存 | `<input type=file>` / `<a download>` | `@tauri-apps/plugin-dialog` + fs | 仅 L4 `FileService` |
-| 构建 | PowerShell 内联脚本 | `vite build`，无需单文件内联 | 仅构建层 |
-| 打印 | `window.print()` | webview 同能力 | 不变 |
+| 环境检测 | — | `src/desktopBridge.js` 检测 `window.__TAURI__`；`enabled=false` 时完全走原路径 | 仅 L4 |
+| 文件打开/保存 | `<input type=file>` / `<a download>` | 自定义 Rust 命令 `pick_markdown` / `read_text_file` / `write_text_file` / `pick_save_path` | 仅 `FileService` |
+| 存储 | IndexedDB + localStorage | **不变**（`tauri://localhost` 同样是安全上下文） | 无 |
+| 构建 | PowerShell 内联为单文件 | 同一份 HTML 复制到 `desktop/app/index.html`，由 `tauri build` 内嵌进 exe | 仅构建层 |
+| 打印 | `window.print()` | WebView2 同能力 | 不变 |
+| 文件关联 | 无 | HKCU 写 `Software\Classes`，不申请管理员权限 | 新增 |
 
-**保持不变**：L1/L2 全部模块、L3 全部纯逻辑、插件注册表、主题、快捷键、DOCX 映射、Paginator。
-迁移前置条件：所有 L4 调用均经过接口（本设计已保证），L3 不触碰浏览器 API。
+**关键实现事实**
+
+- **不引入任何 npm 运行时依赖**：Tauri 只提供外壳，前端仍是那份内联 HTML，`@tauri-apps/api` 未进产物。
+- **编码兼容**：读取按 BOM → UTF-8 → GBK 依次探测，保存按原编码写回，避免把中文老文件静默改成 UTF-8。
+- **原子写**：先写 `.{name}.mdsl-tmp` 再 rename，失败回退直写，避免中途失败把原文档截断。
+- **单实例**：`tauri-plugin-single-instance`；第二个实例把命令行路径转发给已有窗口，并 `eval` 触发 `__MDSL_DESKTOP__.pull()`。
+- **默认程序限制**：Windows 10/11 的 `UserChoice` 带哈希校验，**程序无法静默把自己设为默认**。本实现写 `Software\Classes` + `OpenWithProgids` + `Applications\`，让程序出现在「打开方式」列表，再由用户勾选一次「始终使用此应用」。
+- **体积**：6.8 MB 单 exe（`opt-level="s"` + LTO + `strip`），运行时依赖系统 WebView2（Win11 自带，Win10 1903+ 多数已装）。
+- **拖放**：窗口配置 `dragDropEnabled: false`，把 HTML5 拖放交还页面，保证粘贴 / 拖入图片仍然工作。
 
 ---
 

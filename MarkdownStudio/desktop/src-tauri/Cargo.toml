@@ -1,0 +1,33 @@
+[package]
+name = "markdown-studio-lite"
+version = "1.6.0"
+description = "Markdown Studio Lite — offline Markdown editor"
+authors = ["Zhao Pengliang (Fred) <zplwsygr@163.com>"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "mdsl_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+encoding_rs = "0.8"
+winreg = "0.52"
+tokio = { version = "1", features = ["sync"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_UI_Shell", "Win32_Foundation"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

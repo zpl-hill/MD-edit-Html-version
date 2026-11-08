@@ -14,6 +14,7 @@ import { createPreviewSearch } from "./previewSearch.js";
 import { AUTHOR_NAME, AUTHOR_EMAIL } from "./author.js";
 import { createImageViewer } from "./imageViewer.js";
 import { createFileService } from "./fileService.js";
+import { createDesktopBridge } from "./desktopBridge.js";
 import { createPrintController } from "./print.js";
 import { createDocxExporter } from "./exportDocx.js";
 import { createHelpController } from "./help.js";
@@ -166,8 +167,12 @@ if (capability.backend !== 'indexeddb') {
   setStatus('存储能力受限：' + (capability.reason || capability.backend) + '，请手动保存文件');
 }
 
+/* 桌面版（Tauri）才有原生桥接；浏览器里 enabled=false，行为与之前完全一致。 */
+const desktop = createDesktopBridge();
+
 const fileService = createFileService({
   initialName: 'untitled.md',
+  native: desktop.enabled ? desktop : null,
   onOpen: result => {
     currentDocId = result.id;
     touchRecent({ id: result.id, name: result.name, size: result.size, source: 'file' });
@@ -288,7 +293,14 @@ async function saveSnapshot(trigger) {
 
 async function saveFile() {
   const text = editorRef.getText();
-  const name = fileService.save(text);
+  let name = null;
+  try {
+    name = await fileService.save(text);
+  } catch (e) {
+    setStatus('保存失败：' + (e && e.message ? e.message : e));
+    return;
+  }
+  if (!name) { setStatus('已取消保存'); return; }
   syncTitle(name);
   try {
     await storage.putDoc({ id: currentDocId, name, content: text, updatedAt: Date.now(), version: 1 });
@@ -299,22 +311,65 @@ async function saveFile() {
   } catch (e) { console.warn('[save]', e); }
   dirty = false;
   setSaveStatus('已保存 ' + timeNow());
-  setStatus('已下载 ' + name + '；正文已存入本机存储');
+  setStatus(desktop.enabled
+    ? '已保存到 ' + fileService.getName()
+    : '已下载 ' + name + '；正文已存入本机存储');
 }
 
-function saveAs() {
-  const name = fileService.saveAs(editorRef.getText());
-  if (name) { syncTitle(name); setStatus('已另存为 ' + name); setSaveStatus('已保存 ' + timeNow()); }
+async function saveAs() {
+  let name = null;
+  try {
+    name = await fileService.saveAs(editorRef.getText());
+  } catch (e) {
+    setStatus('另存为失败：' + (e && e.message ? e.message : e));
+    return;
+  }
+  if (!name) return;
+  syncTitle(name);
+  setStatus('已另存为 ' + name);
+  setSaveStatus('已保存 ' + timeNow());
 }
 
 async function openFile() {
-  const result = await fileService.open();
+  let result = null;
+  try {
+    result = await fileService.open();
+  } catch (e) {
+    setStatus('打开失败：' + (e && e.message ? e.message : e));
+    return;
+  }
   if (!result) return;
   editorRef.setText(result.text);
   viewer.render(result.text);
   updateCounts();
   dirty = false;
   setSaveStatus('已打开 ' + timeNow());
+}
+
+/* 桌面版：宿主送进来的文件（双击 .md 的命令行参数，或第二个实例转发）。
+   取一次即清空，避免下次刷新又重开同一个文件。 */
+async function openFromHost() {
+  if (!desktop.enabled) return null;
+  let doc = null;
+  try {
+    doc = await desktop.takePending();
+  } catch (e) {
+    setStatus('打开外部文件失败：' + (e && e.message ? e.message : e));
+    return null;
+  }
+  if (!doc) return null;
+  editorRef.setText(doc.text);
+  viewer.render(doc.text);
+  updateCounts();
+  fileService.setName(doc.name);
+  currentDocId = 'file:' + doc.name + ':' + doc.size;
+  touchRecent({ id: currentDocId, name: doc.name, size: doc.size, source: 'file' });
+  renderRecent();
+  syncTitle(doc.name);
+  dirty = false;
+  setSaveStatus('已打开 ' + timeNow());
+  setStatus('已打开 ' + doc.name);
+  return doc;
 }
 
 /* ---------- 新建文档 ----------
@@ -499,6 +554,40 @@ function cycleView() {
   return next;
 }
 
+/* 注册 HKCU 文件关联。Windows 10/11 的 UserChoice 保护决定程序无法静默成为默认，
+   所以这里只负责「登记 + 引导用户确认一次」，不假装已经成功。 */
+async function makeDefaultApp() {
+  if (!desktop.enabled) return;
+  try {
+    await desktop.setDefaultApp();
+    const status = await desktop.defaultStatus();
+    if (status && status.is_default) {
+      banner('已设为 .md 的默认打开方式。双击任意 .md 文件即可用本程序打开。', [
+        { label: '知道了', run: hideBanner }
+      ]);
+      setStatus('已设为默认打开方式');
+      return;
+    }
+    banner('文件关联已登记。点「选择打开方式」并勾选「始终使用此应用」，之后双击 .md 就会用本程序打开。', [
+      {
+        label: '选择打开方式',
+        run: async () => {
+          try {
+            await desktop.openWithDialog(desktop.getPath());
+          } catch (e) {
+            setStatus('打开「打开方式」失败：' + (e && e.message ? e.message : e));
+          }
+          hideBanner();
+        }
+      },
+      { label: '系统设置', run: () => { desktop.openDefaultSettings(); hideBanner(); } }
+    ]);
+    setStatus('已登记文件关联，等待系统确认');
+  } catch (e) {
+    setStatus('设置默认打开方式失败：' + (e && e.message ? e.message : e));
+  }
+}
+
 function showAbout() {
   const dialog = $('#about-dialog');
   dialog.querySelector('.about-body').innerHTML =
@@ -510,10 +599,18 @@ function showAbout() {
         '<button class="tbtn about-copy" type="button" data-copy-email="1">复制邮箱</button>' +
       '</div>' +
     '</div>' +
-    '<p><strong>Markdown Studio Lite V1.0</strong></p>' +
-    '<p>单 HTML 文件 · 纯前端 · 完全离线 · 无需安装</p>' +
+    '<p><strong>Markdown Studio Lite ' + (desktop.enabled ? '桌面版' : 'V1.0') + '</strong></p>' +
+    (desktop.enabled
+      ? '<p>Tauri 2 + 系统 WebView2 · 完全离线 · 免安装单文件</p>'
+      : '<p>单 HTML 文件 · 纯前端 · 完全离线 · 无需安装</p>') +
     '<p>运行时不依赖 Node / Python / 服务器 / 网络。</p>' +
     '<p>存储后端：' + capability.backend + ' · 导出的 Word 文档属性中也会写入作者信息。</p>' +
+    (desktop.enabled
+      ? '<div class="about-desktop"><p><strong>文件关联</strong></p>' +
+        '<p>设为默认后，双击任意 .md 文件即可直接进入编辑器；保存会写回原文件。</p>' +
+        '<p><button class="tbtn" type="button" data-default-app="1">设为 .md 默认打开方式</button></p>' +
+        '</div>'
+      : '') +
     '<details open><summary>第三方软件许可证（' + (hasNotices() ? '已内嵌' : '缺失') + '）</summary>' +
     buildNoticesMarkup() + '</details>';
   dialog.classList.add('open');
@@ -568,6 +665,15 @@ $('.view-switch').addEventListener('click', event => {
 });
 
 $('#about-dialog').addEventListener('click', async event => {
+  const defaultButton = event.target.closest('[data-default-app]');
+  if (defaultButton) {
+    defaultButton.disabled = true;
+    defaultButton.textContent = '正在登记…';
+    await makeDefaultApp();
+    defaultButton.disabled = false;
+    defaultButton.textContent = '设为 .md 默认打开方式';
+    return;
+  }
   const copyButton = event.target.closest('[data-copy-email]');
   if (copyButton) {
     let copied = false;
@@ -694,13 +800,24 @@ updateCounts();
 renderRecent();
 applyView(getPref('viewMode', 'split'), false);
 setSaveStatus('就绪');
-setStatus('就绪 · 双击即可离线使用');
+setStatus(desktop.enabled ? '就绪 · 桌面版，双击 .md 即可直接打开' : '就绪 · 双击即可离线使用');
 if (globalThis.__MDSL_I18N && globalThis.__MDSL_I18N.subtitle) {
   $('#app-subtitle').textContent = globalThis.__MDSL_I18N.subtitle;
   setStatus(globalThis.__MDSL_I18N.ready);
 }
 
-await restoreDraft();
+/* 桌面版：第二个实例双击文件时，Rust 侧会 eval pull() 把焦点与文件送进来。
+   首次启动则由下面这行主动取一次：命令行里的文件优先于上次草稿。 */
+if (desktop.enabled) {
+  globalThis.__MDSL_DESKTOP__ = {
+    pull: () => { openFromHost(); },
+    setDefault: () => makeDefaultApp()
+  };
+  const hostDoc = await openFromHost();
+  if (!hostDoc) await restoreDraft();
+} else {
+  await restoreDraft();
+}
 
 if (location.hash && location.hash.length > 1) {
   try { tocRef.goto(decodeURIComponent(location.hash.slice(1))); } catch (e) { /* ignore */ }

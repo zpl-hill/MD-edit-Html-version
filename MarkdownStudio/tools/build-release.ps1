@@ -118,7 +118,7 @@ Write-Step ("i18n + notices injected: " + $licenseFiles.Count + " licenses")
 $moduleOrder = @(
   "platform.js", "icons.js", "notices.js", "author.js", "slug.js", "sanitizer.js", "shortcuts.js", "help.js",
   "storage.js", "theme.js", "parser.js", "editor.js", "viewer.js", "toc.js",
-  "search.js", "previewSearch.js", "imageViewer.js", "fileService.js", "paginator.js", "print.js", "omml.js", "imageData.js",
+  "search.js", "previewSearch.js", "imageViewer.js", "desktopBridge.js", "fileService.js", "paginator.js", "print.js", "omml.js", "imageData.js",
   "docxConverter.js", "exportDocx.js", "main.js"
 )
 $moduleIds = @{}
@@ -198,6 +198,16 @@ Write-Step "Self-check passed"
 $outDir = Split-Path -Parent $outputPath
 if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
 [System.IO.File]::WriteAllText($outputPath, $html, [System.Text.UTF8Encoding]::new($false))
+
+# --- 7. Mirror to desktop shell (only when the Tauri project exists) ---
+# Same single HTML runs in both places: the desktop bridge auto-detects window.__TAURI__,
+# so there is no separate "desktop edition" to keep in sync.
+$desktopApp = Join-Path (Join-Path $root "desktop") "app"
+if (Test-Path (Split-Path -Parent $desktopApp)) {
+  if (-not (Test-Path $desktopApp)) { New-Item -ItemType Directory -Path $desktopApp -Force | Out-Null }
+  [System.IO.File]::WriteAllText((Join-Path $desktopApp "index.html"), $html, [System.Text.UTF8Encoding]::new($false))
+  Write-Step ("Desktop copy: " + (Join-Path $desktopApp "index.html"))
+}
 
 $sizeBytes = (Get-Item $outputPath).Length
 $sizeMiB = [Math]::Round($sizeBytes / 1MB, 2)
