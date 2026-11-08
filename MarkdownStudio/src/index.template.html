@@ -22,6 +22,9 @@
     <button class="tbtn" data-action="save-as" title="另存为">另存为</button>
 
     <span class="toolbar-sep"></span>
+    <button class="tbtn" data-action="image" title="插入图片 (Alt+I)：可选内嵌 Base64 或引用路径">插入图片</button>
+
+    <span class="toolbar-sep"></span>
     <div class="view-switch" role="group" aria-label="视图模式">
       <button class="tbtn view-btn active" data-view="split" title="三栏：目录 + 编辑 + 预览">三栏</button>
       <button class="tbtn view-btn" data-view="editor" title="仅编辑：隐藏预览，专注写作">编辑</button>
@@ -96,6 +99,58 @@
 
 <div class="print-source" id="print-source" aria-hidden="true"></div>
 <div class="print-pages" id="print-pages"></div>
+
+<div class="mdsl-dialog" id="image-dialog">
+  <div class="dialog-card image-card" role="dialog" aria-modal="true" aria-labelledby="image-dialog-title">
+    <div class="dialog-head"><strong id="image-dialog-title">插入图片</strong><button data-close="1" aria-label="关闭">×</button></div>
+
+    <div class="image-row">
+      <label class="image-label" for="image-path">图片位置</label>
+      <div class="image-src">
+        <input type="text" id="image-path" spellcheck="false" placeholder="选择本地文件，或粘贴路径 / 网址">
+        <button class="tbtn" type="button" data-image="pick">选择文件…</button>
+      </div>
+      <p class="image-hint" id="image-hint"></p>
+    </div>
+
+    <div class="image-row">
+      <span class="image-label">插入方式</span>
+      <div class="image-modes">
+        <label class="image-mode">
+          <input type="radio" name="image-mode" value="embed" checked>
+          <span class="image-mode-text">
+            <b>内嵌 Base64</b>
+            <em>图片数据写进 .md 正文：单文件自包含，换机、发送都不丢图；正文会多出一长串字符。</em>
+          </span>
+        </label>
+        <label class="image-mode">
+          <input type="radio" name="image-mode" value="path">
+          <span class="image-mode-text">
+            <b>引用路径</b>
+            <em>只写路径：编辑器清爽、文档很小；图片文件要和 .md 一起保存和搬移。</em>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <div class="image-row image-alt-row">
+      <label class="image-label" for="image-alt">替代文本</label>
+      <input type="text" id="image-alt" placeholder="留空则用文件名；导出 DOCX 时作为图注">
+    </div>
+
+    <div class="image-preview" id="image-preview"></div>
+
+    <div class="image-foot">
+      <label class="image-remember"><input type="checkbox" id="image-remember" checked> 记住这个方式，拖入图片时也用它</label>
+      <div class="image-actions">
+        <button class="tbtn" type="button" data-image="cancel">取消</button>
+        <button class="tbtn image-primary" type="button" data-image="insert">插入</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="image-file-input" accept="image/*" hidden>
 
 <div class="mdsl-dialog" id="new-dialog">
   <div class="dialog-card new-card" role="dialog" aria-modal="true" aria-labelledby="new-dialog-title">

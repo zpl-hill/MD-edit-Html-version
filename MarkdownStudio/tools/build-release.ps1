@@ -119,7 +119,7 @@ $moduleOrder = @(
   "platform.js", "icons.js", "notices.js", "author.js", "slug.js", "sanitizer.js", "shortcuts.js", "help.js",
   "storage.js", "theme.js", "parser.js", "editor.js", "viewer.js", "toc.js",
   "search.js", "previewSearch.js", "imageViewer.js", "desktopBridge.js", "fileService.js", "paginator.js", "print.js", "omml.js", "imageData.js",
-  "docxConverter.js", "exportDocx.js", "main.js"
+  "imageInsert.js", "docxConverter.js", "exportDocx.js", "main.js"
 )
 $moduleIds = @{}
 foreach ($file in $moduleOrder) {

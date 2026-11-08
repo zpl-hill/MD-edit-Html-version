@@ -18,7 +18,8 @@ import { createDesktopBridge } from "./desktopBridge.js";
 import { createPrintController } from "./print.js";
 import { createDocxExporter } from "./exportDocx.js";
 import { createHelpController } from "./help.js";
-import { imageFilesFromDataTransfer, imageFilesFromClipboard, fileToMarkdownImage, buildImageSnippet } from "./imageData.js";
+import { imageFilesFromDataTransfer, imageFilesFromClipboard, fileToMarkdownImage, buildImageSnippet, toLocalAbsolutePath } from "./imageData.js";
+import { createImageInserter } from "./imageInsert.js";
 
 const $ = selector => document.querySelector(selector);
 
@@ -186,6 +187,32 @@ const fileService = createFileService({
 editorRef = createEditor({ parent: $('#editor-host'), initial: getPref('startupBlank', false) ? '' : SAMPLE });
 const parser = createParser();
 
+/* 桌面版：把 ![](pic.png) / ![](C:/x/pic.png) 换成 WebView 能加载的内部 URL。
+   浏览器版不动 —— file:// 下浏览器会按页面位置自行解析相对路径。 */
+const localImageCache = new Map();
+const localImageFailed = new Set();
+
+function rewriteLocalImages(root) {
+  if (!desktop.enabled || !desktop.assetUrl) return;
+  const base = desktop.getPath();
+  root.querySelectorAll('img').forEach(img => {
+    const raw = img.getAttribute('src') || '';
+    if (!raw || img.getAttribute('data-mdsl-local')) return;
+    const abs = toLocalAbsolutePath(raw, base);
+    if (!abs) return;
+    img.setAttribute('data-mdsl-local', abs);
+    if (localImageFailed.has(abs)) return;
+    if (localImageCache.has(abs)) { img.setAttribute('src', localImageCache.get(abs)); return; }
+    img.setAttribute('src', desktop.assetUrl(abs));
+    img.addEventListener('error', () => {
+      desktop.readImageDataUrl(abs).then(url => {
+        localImageCache.set(abs, url);
+        img.setAttribute('src', url);
+      }).catch(() => { localImageFailed.add(abs); });
+    }, { once: true });
+  });
+}
+
 const viewer = createPreviewController({
   container: $('#preview'),
   onHeadings: list => {
@@ -194,7 +221,10 @@ const viewer = createPreviewController({
   },
   onStatus: setStatus,
   // 预览 DOM 被整体替换 / 代码块延迟高亮后，重建「预览内查找」的高亮。
-  onRendered: () => { if (previewSearch) previewSearch.refresh(); },
+  onRendered: () => {
+    rewriteLocalImages($('#preview'));
+    if (previewSearch) previewSearch.refresh();
+  },
   onHighlighted: () => { if (previewSearch) previewSearch.refresh(); }
 });
 
@@ -238,6 +268,7 @@ const printController = createPrintController({
 });
 
 const docxExporter = createDocxExporter({
+  desktop,
   getTokens: () => parser.lex(editorRef.getText()),
   getTitle: () => (headings[0] ? headings[0].text : fileService.getName())
 });
@@ -437,7 +468,7 @@ async function exportDocx() {
     if (stats && stats.mathCount) message += ' · ' + stats.mathCount + ' 个公式已转为 Word 原生公式';
     if (stats && stats.mathFailures) message += ' · 注意：' + stats.mathFailures + ' 个公式转换失败，已保留源码';
     if (stats && stats.imageCount) message += ' · ' + stats.imageCount + ' 张图片已嵌入 Word';
-    if (stats && stats.imageFailures) message += ' · 注意：' + stats.imageFailures + ' 张图片是外链/相对路径，离线无法读取，已用占位文字代替';
+    if (stats && stats.imageFailures) message += ' · 注意：' + stats.imageFailures + ' 张图片是路径/外链引用，Word 里只留占位文字（想带上图请改用「内嵌 Base64」）';
     setStatus(message);
   } catch (e) {
     setStatus('DOCX 导出失败：' + (e && e.message ? e.message : '未知错误'));
@@ -620,6 +651,7 @@ const shortcuts = createShortcutRegistry(window);
 /* Ctrl+N 是 Chrome/Edge 保留快捷键（开新窗口），网页无法拦截，故用 Alt+N / Ctrl+Alt+N。 */
 shortcuts.register('Alt+N', requestNew);
 shortcuts.register('Ctrl+Alt+N', requestNew);
+shortcuts.register('Alt+I', () => imageInserter.open());
 shortcuts.register('Ctrl+O', openFile);
 shortcuts.register('Ctrl+S', saveFile);
 shortcuts.register('Ctrl+Shift+S', saveAs);
@@ -641,6 +673,7 @@ $('#toolbar').addEventListener('click', event => {
   else if (action === 'open') openFile();
   else if (action === 'save') saveFile();
   else if (action === 'save-as') saveAs();
+  else if (action === 'image') imageInserter.open();
   else if (action === 'pdf') printController.print();
   else if (action === 'docx') exportDocx();
   else if (action === 'theme') setStatus('主题: ' + theme.cycle());
@@ -727,20 +760,40 @@ window.addEventListener('keydown', event => {
   if (event.key === 'Escape' && dialog && dialog.classList.contains('open')) dialog.classList.remove('open');
 });
 
-/* 图片内嵌：粘贴截图 / 拖入图片文件 → data URI 写进 .md。
-   图片随文档一起保存，离线预览、打印和 DOCX 导出都能带上，无需同目录图片文件。 */
-async function insertImageFiles(files) {
+/* 图片：粘贴截图 / 拖入图片文件 / 对话框选择，三种入口统一走这里。
+   内嵌模式写 data URI（图片随文档走），路径模式只写路径（文档更小，需同目录带图）。 */
+function insertImageEntry(entry) {
   if (viewMode === 'reader') applyView('split', true);
+  const state = editorRef.view.state;
+  const head = state.selection.main.head;
+  const line = state.doc.lineAt(head);
+  const before = line.text.slice(0, head - line.from);
+  const after = line.text.slice(head - line.from);
+  editorRef.insertText(buildImageSnippet(entry, before, after));
+}
+
+const imageInserter = createImageInserter({
+  dialog: $('#image-dialog'),
+  desktop,
+  getPref,
+  setPref,
+  setStatus,
+  insert: entry => {
+    insertImageEntry(entry);
+    if (entry.mode === 'path') {
+      setStatus('已按路径插入 ' + (entry.alt || entry.path) + '（图片文件需与 .md 一起保存）');
+    } else {
+      setStatus('已内嵌 1 张图片（约 ' + formatSize(entry.bytes) + '），随 .md 一起保存，导出 DOCX 会保留');
+    }
+  }
+});
+
+async function insertImageFiles(files) {
   let ok = 0, failed = 0, bytes = 0;
   for (const file of files) {
     try {
       const entry = await fileToMarkdownImage(file);
-      const state = editorRef.view.state;
-      const head = state.selection.main.head;
-      const line = state.doc.lineAt(head);
-      const before = line.text.slice(0, head - line.from);
-      const after = line.text.slice(head - line.from);
-      editorRef.insertText(buildImageSnippet(entry, before, after));
+      insertImageEntry(entry);
       ok++;
       bytes += entry.bytes;
     } catch (e) {
@@ -748,8 +801,10 @@ async function insertImageFiles(files) {
       console.warn('[image]', e);
     }
   }
+  const wantPath = imageInserter.getPreferredMode() === 'path';
   setStatus('已内嵌 ' + ok + ' 张图片（约 ' + formatSize(bytes) + '，随 .md 一起保存，导出 DOCX 会保留）'
-    + (failed ? ' · ' + failed + ' 张无法解码' : ''));
+    + (failed ? ' · ' + failed + ' 张无法解码' : '')
+    + (wantPath ? ' · 拖入无法取得磁盘路径，想引用路径请用「插入图片」选择文件' : ''));
 }
 
 /* 捕获阶段拦截：有图片时不再让 CodeMirror 把剪贴板内容当纯文本粘贴。 */

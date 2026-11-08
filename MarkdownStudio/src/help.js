@@ -45,8 +45,10 @@ const HELP = [
         title: '链接、图片与锚点',
         rows: [
           { syntax: '[显示文字](https://example.com)', desc: '超链接；本工具会加上 noreferrer，并在新标签打开', insert: '[显示文字](https://example.com)\n' },
+          { syntax: '工具栏「插入图片」 / Alt+I', desc: '选本地文件、粘贴路径或网址，再决定「内嵌 Base64」还是「引用路径」；勾选「记住」后，拖入图片也按这个方式处理', insert: null },
           { syntax: '直接粘贴截图 / 拖入图片', desc: '最省事的做法：Ctrl+V 粘贴截图，或把 png/jpg/webp/svg 拖进窗口，会自动内嵌成 data URI 并插入光标处；大图自动压缩', insert: null },
-          { syntax: '![说明](data:image/png;base64,...)', desc: '图片写法。内嵌 data URI 会随 .md 一起保存，离线预览和 DOCX 导出都能带上；外链或相对路径图片在 DOCX 里只会留下占位文字', insert: '![示意](data:image/png;base64,)\n' },
+          { syntax: '![说明](data:image/png;base64,...)', desc: '内嵌写法。图片数据随 .md 一起保存，离线预览、打印和 DOCX 导出都能带上，但正文会很长', insert: '![示意](data:image/png;base64,)\n' },
+          { syntax: '![说明](./pic/a.png)', desc: '路径写法。文档很小、编辑器清爽；图片文件要和 .md 一起保存和搬移。桌面版导出 DOCX 不会带上路径图片', insert: '![示意](./pic/a.png)\n' },
           { syntax: '[跳到第二节](#第二节)', desc: '跳到本文档内的标题锚点；中文标题直接用原文，重复标题会自动加序号', insert: '[跳转到](#标题)\n' },
           { syntax: '<!-- 注释 -->', desc: 'HTML 注释：只出现在源码里，预览与打印都不显示', insert: '<!-- 这里写备注，不会显示在预览中 -->\n' }
         ]

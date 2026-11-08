@@ -97,6 +97,32 @@ export function createDesktopBridge() {
     return await invoke('reveal_in_explorer', { path: path || currentPath });
   }
 
+  /* ---- 图片：选文件 / 读字节 / 算相对路径 / 转内部 URL ---- */
+
+  async function pickImage() {
+    return await invoke('pick_image');
+  }
+
+  async function readImageDataUrl(path) {
+    return await invoke('read_image_data_url', { path });
+  }
+
+  /* 返回写进 Markdown 的路径：同盘且文档已保存时给相对路径，否则给绝对路径。 */
+  async function imagePathFor(baseFile, imagePath) {
+    return await invoke('image_markdown_path', { baseFile: baseFile || null, image: imagePath });
+  }
+
+  /* WebView2 的页面源是 http://tauri.localhost，file:// 图片会被拦，
+     必须换成 asset 协议地址才能显示。 */
+  function assetUrl(path) {
+    if (!path) return '';
+    const core = tauri && tauri.core;
+    if (core && typeof core.convertFileSrc === 'function') {
+      try { return core.convertFileSrc(path); } catch (e) { return ''; }
+    }
+    return '';
+  }
+
   return {
     enabled: true,
     open,
@@ -110,6 +136,10 @@ export function createDesktopBridge() {
     openDefaultSettings,
     openWithDialog,
     revealInExplorer,
+    pickImage,
+    readImageDataUrl,
+    imagePathFor,
+    assetUrl,
     baseName,
     getPath: () => currentPath,
     getEncoding: () => currentEncoding

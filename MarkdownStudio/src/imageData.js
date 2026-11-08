@@ -83,19 +83,74 @@ function altFromFile(file) {
   return base.replace(/[\][()\r\n]/g, ' ').trim().slice(0, 60) || '图片';
 }
 
+/* ---------------- 路径引用模式 ---------------- */
+
+function escapeAltText(value) {
+  return String(value || '').replace(/[\][()\r\n]/g, ' ').trim();
+}
+
+function altFromPath(p) {
+  const base = String(p || '').split(/[\\/]/).pop() || '图片';
+  return escapeAltText(base.replace(/\.[^.]+$/, '')).slice(0, 60) || '图片';
+}
+
+/* 链接目标里的空格 / 括号必须转义，否则 Markdown 会提前截断。
+   中文保持原样（比整串 encodeURI 更可读，各编辑器也都支持）。 */
+export function encodeLinkTarget(value) {
+  return String(value || '').replace(/[ ()<>#?]/g, ch =>
+    '%' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'));
+}
+
+export function decodeLinkTarget(value) {
+  const text = String(value || '');
+  try { return decodeURIComponent(text); } catch (e) { return text; }
+}
+
+/* 判断是否真的带协议（http:// / data: / file: ...）。
+   注意不能只看 "xxx:" —— Windows 盘符 "C:/pic.png" 会被误判成协议。 */
+export function isRemoteUrl(value) {
+  const text = String(value || '').trim();
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(text)
+    || /^data:/i.test(text)
+    || /^file:/i.test(text)
+    || text.startsWith('//');
+}
+
+/* 只写路径，不复制图片字节。文档更小，但图片文件要和 .md 一起存放/移动。 */
+export function pathToMarkdownImage(pathValue, alt) {
+  const path = String(pathValue || '').trim();
+  if (!path) throw new Error('路径为空');
+  const label = escapeAltText(alt) || altFromPath(path);
+  return {
+    markdown: '![' + label + '](' + (isRemoteUrl(path) ? path : encodeLinkTarget(path)) + ')',
+    alt: label,
+    path,
+    mode: 'path',
+    bytes: 0,
+    width: 0,
+    height: 0
+  };
+}
+
 /* 图片文件 → 一段可直接插入编辑器的 Markdown。
    原生格式且体积/尺寸可控时保留原字节（GIF 动图、JPEG 体积都不会被破坏）；
    否则栅格化为 PNG/JPEG，兼顾 Word 兼容性与 .md 大小。 */
 export async function fileToMarkdownImage(file) {
   if (!file || file.size > MAX_FILE) throw new Error('图片超过 20 MB，请先压缩');
   const sourceUri = await readAsDataUrl(file);
+  return await dataUriToMarkdownImage(sourceUri, altFromFile(file), file.size);
+}
+
+/* 桌面版从磁盘读回的图片走同一条压缩/栅格化链路，保证与浏览器版行为一致。 */
+export async function dataUriToMarkdownImage(sourceUri, altHint, byteHint) {
   const loaded = await loadImage(sourceUri);
   const width = loaded.width || 800;
   const height = loaded.height || 600;
   const subtype = (/^data:image\/([^;,]+)/i.exec(sourceUri) || [])[1] || '';
   const native = DOCX_TYPES.has(subtype.toLowerCase());
+  const bytes = Number(byteHint) || Math.round(sourceUri.length * 0.75);
   let uri = sourceUri, outW = width, outH = height;
-  if (!native || file.size > 2 * 1024 * 1024 || Math.max(width, height) > 2000) {
+  if (!native || bytes > 2 * 1024 * 1024 || Math.max(width, height) > 2000) {
     const asJpeg = /^jpe?g$/i.test(subtype);
     let r = render(loaded.img, width, height, MAX_EDGE, asJpeg, 0.88);
     if (r.uri.length > 2.5 * 1024 * 1024) {
@@ -104,10 +159,10 @@ export async function fileToMarkdownImage(file) {
     }
     uri = r.uri; outW = r.width; outH = r.height;
   }
-  const alt = altFromFile(file);
+  const alt = escapeAltText(altHint) || '图片';
   return {
     markdown: '![' + alt + '](' + uri + ')',
-    uri, alt, width: outW, height: outH,
+    uri, alt, mode: 'embed', width: outW, height: outH,
     bytes: Math.round(uri.length * 0.75)
   };
 }
@@ -117,6 +172,46 @@ export function buildImageSnippet(entry, before, after) {
   const prefix = before && before.trim() ? '\n\n' : '\n';
   const suffix = after && after.trim() ? '\n\n' : '\n';
   return prefix + entry.markdown + suffix;
+}
+
+/* ---------------- 本地路径解析（预览用） ---------------- */
+
+const REMOTE_SRC = /^(?:data:|blob:|https?:|\/\/)/i;
+
+/* 把 Markdown 里的图片地址还原成磁盘绝对路径；不是本地路径时返回 null。
+   桌面版靠它把 ![](pic.png) 换成可加载的内部 URL，浏览器版直接返回 null 不干预。 */
+export function toLocalAbsolutePath(src, baseFile) {
+  const raw = decodeLinkTarget(String(src || '').trim());
+  if (!raw || REMOTE_SRC.test(raw)) return null;
+
+  let path = raw.replace(/\\/g, '/');
+  if (/^file:\/\//i.test(path)) {
+    path = path.replace(/^file:\/\//i, '');
+    if (/^\/[A-Za-z]:/.test(path)) path = path.slice(1);   // file:///C:/x → C:/x
+  }
+  const absolute = /^[A-Za-z]:\//.test(path);
+  if (!absolute && path.startsWith('/')) return null;      // 站点根相对，不猜
+  if (!absolute) {
+    if (!baseFile) return null;
+    const dir = String(baseFile).replace(/\\/g, '/').replace(/\/[^/]*$/, '');
+    if (!dir) return null;
+    path = dir + '/' + path;
+  }
+  return normalizeSegments(path);
+}
+
+function normalizeSegments(input) {
+  const parts = String(input).split('/');
+  const out = [];
+  parts.forEach(part => {
+    if (part === '..') {
+      if (out.length && !(out.length === 1 && /^[A-Za-z]:$/.test(out[0]))) out.pop();
+      return;
+    }
+    if (part === '.' || (part === '' && out.length)) return;
+    out.push(part);
+  });
+  return out.join('/');
 }
 
 /* DOCX 图片解码：只接受内嵌 data: 与同源 blob:，绝不主动请求 http(s)/本地路径，

@@ -366,6 +366,125 @@ fn reveal_in_explorer(path: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/* ---------------- 图片 ---------------- */
+
+const IMAGE_EXTS: [&str; 9] = ["png", "jpg", "jpeg", "gif", "bmp", "webp", "svg", "avif", "ico"];
+
+fn guess_image_mime(path: &std::path::Path) -> &'static str {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "bmp" => "image/bmp",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "avif" => "image/avif",
+        "ico" => "image/x-icon",
+        _ => "application/octet-stream",
+    }
+}
+
+/* 标准 base64，不引第三方 crate：只是为了让图片以 data URI 形式进编辑器。 */
+fn base64_encode(input: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity((input.len() + 2) / 3 * 4);
+    for chunk in input.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = *chunk.get(1).unwrap_or(&0) as u32;
+        let b2 = *chunk.get(2).unwrap_or(&0) as u32;
+        let n = (b0 << 16) | (b1 << 8) | b2;
+        out.push(TABLE[((n >> 18) & 63) as usize] as char);
+        out.push(TABLE[((n >> 12) & 63) as usize] as char);
+        out.push(if chunk.len() > 1 { TABLE[((n >> 6) & 63) as usize] as char } else { '=' });
+        out.push(if chunk.len() > 2 { TABLE[(n & 63) as usize] as char } else { '=' });
+    }
+    out
+}
+
+#[tauri::command]
+async fn pick_image(app: AppHandle) -> Option<String> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .set_title("选择图片")
+        .add_filter("图片", &IMAGE_EXTS)
+        .pick_file(move |p| {
+            let _ = tx.send(p);
+        });
+    rx.await.ok().flatten().map(fp_to_string)
+}
+
+#[tauri::command]
+fn read_image_data_url(path: String) -> Result<String, String> {
+    const MAX: u64 = 20 * 1024 * 1024;
+    let p = PathBuf::from(&path);
+    let meta = std::fs::metadata(&p).map_err(|e| format!("读取失败：{}", e))?;
+    if meta.len() > MAX {
+        return Err("图片超过 20 MB，请先压缩".to_string());
+    }
+    let bytes = std::fs::read(&p).map_err(|e| format!("读取失败：{}", e))?;
+    Ok(format!(
+        "data:{};base64,{}",
+        guess_image_mime(&p),
+        base64_encode(&bytes)
+    ))
+}
+
+/* 同盘且文档已保存 → 相对路径（整个目录搬走仍可用）；否则绝对路径（正斜杠）。 */
+fn relative_from(base_dir: &std::path::Path, target: &std::path::Path) -> Option<String> {
+    use std::path::Component;
+
+    let b: Vec<Component> = base_dir.components().collect();
+    let t: Vec<Component> = target.components().collect();
+    if b.is_empty() || t.is_empty() {
+        return None;
+    }
+    let key = |c: &Component| c.as_os_str().to_string_lossy().to_lowercase();
+    let mut i = 0;
+    while i < b.len() && i < t.len() && key(&b[i]) == key(&t[i]) {
+        i += 1;
+    }
+    if i == 0 {
+        return None; // 盘符都不同
+    }
+
+    let mut parts: Vec<String> = Vec::new();
+    for _ in i..b.len() {
+        parts.push("..".to_string());
+    }
+    for c in &t[i..] {
+        match c {
+            Component::Normal(s) => parts.push(s.to_string_lossy().to_string()),
+            Component::ParentDir => parts.push("..".to_string()),
+            Component::CurDir => {}
+            _ => return None,
+        }
+    }
+    if parts.is_empty() {
+        return None;
+    }
+    Some(parts.join("/"))
+}
+
+#[tauri::command]
+fn image_markdown_path(base_file: Option<String>, image: String) -> String {
+    let target = PathBuf::from(&image);
+    if let Some(dir) = base_file
+        .as_ref()
+        .and_then(|b| PathBuf::from(b).parent().map(|d| d.to_path_buf()))
+    {
+        if let Some(rel) = relative_from(&dir, &target) {
+            return rel;
+        }
+    }
+    target.to_string_lossy().replace('\\', "/")
+}
+
 fn focus_and_pull(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
@@ -404,7 +523,10 @@ pub fn run() {
             default_app_status,
             open_default_apps_settings,
             open_with_dialog,
-            reveal_in_explorer
+            reveal_in_explorer,
+            pick_image,
+            read_image_data_url,
+            image_markdown_path
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Markdown Studio Lite");

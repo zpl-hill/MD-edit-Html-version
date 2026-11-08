@@ -5,6 +5,7 @@
 **/dist/build.log
 **/dist/probe*.log
 **/dist/downloads/
+**/dist/*-test/
 *.log
 
 # Editor / OS noise

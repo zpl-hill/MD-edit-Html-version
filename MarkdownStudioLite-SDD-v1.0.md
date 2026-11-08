@@ -561,11 +561,23 @@ flowchart LR
 1. `data:image/(png|jpeg|gif|bmp);base64,...` —— 直接 `atob` 解码成字节，保留原格式（GIF、JPEG 体积不被破坏）；
 2. 其它内嵌 data URI（webp / avif / svg+xml / 百分号编码）与同源 `blob:` —— 用 `Image` + `canvas` 栅格化为 PNG 再解码。
 
-导出时图片等比限制在 560 px 宽；独占一个段落的图片在 Word 中居中。`http(s):` 外链和相对路径**不主动请求**（`file://` 下浏览器读不到同目录图片，离线环境也不应发网络请求），降级为占位文本 `[图片: alt]`，且 `imageFailures` 计数会出现在状态栏，不静默丢弃。
+导出时图片等比限制在 560 px 宽；独占一个段落的图片在 Word 中居中。`http(s):` 外链**不主动请求**（离线环境不应发网络请求），降级为占位文本 `[图片: alt]`，且 `imageFailures` 计数会出现在状态栏，不静默丢弃。
 
-图片进入文档靠「编辑器内嵌」而不是路径引用：`Ctrl+V` 粘贴截图，或把 png/jpg/webp/svg 等图片文件拖进窗口（`imageFilesFromClipboard()` / `imageFilesFromDataTransfer()`），`fileToMarkdownImage()` 生成 `![alt](data:...)` 插到光标处并自成一段；原生格式且 ≤ 2 MB / ≤ 2000 px 时保留原字节，大图或 Word 不认识的格式自动栅格化压缩（上限 1600 px，过大再降为 JPEG 0.8）。图片随 `.md` 与 IndexedDB 快照一起保存，离线预览、打印与 DOCX 导出均可用。
+**V1.7 起增加"路径引用"分支**：桌面版（Tauri）的 `resolveImage()` 在内嵌解码失败后，会把相对/绝对路径解析成磁盘绝对路径（`toLocalAbsolutePath()`，基准为当前 `.md` 所在目录），经 `read_image_data_url` 读成 data URI 再走同一条解码链路。因此**同一张本地图片，选了「引用路径」也能进 Word**，只是导出时会多读一次磁盘。浏览器版没有路径信息，行为与 V1.5 一致：降级为占位文本并在状态栏计数。
 
-> 原计划中的 Blob 相对路径缓存与 IndexedDB `images` store 未启用：内嵌 data URI 已覆盖该场景，且避免单文档工具引入额外状态；`images` store 保留在 schema 中供后续多附件版本使用。
+图片有三个入口、两种写法：
+
+| 入口 | 得到的路径 | 说明 |
+|---|---|---|
+| `Ctrl+V` 粘贴截图 | 无（只能内嵌） | `imageFilesFromClipboard()` → `fileToMarkdownImage()` |
+| 拖入图片文件 | 无（只能内嵌） | `imageFilesFromDataTransfer()`；浏览器安全模型不暴露 `File.path` |
+| 工具栏「插入图片」/ `Alt+I` | 有（桌面版原生对话框） | 可选「内嵌 Base64」或「引用路径」，并记住选择供拖入沿用 |
+
+`fileToMarkdownImage()` 生成 `![alt](data:...)`，原生格式且 ≤ 2 MB / ≤ 2000 px 时保留原字节，大图或 Word 不认识的格式自动栅格化压缩（上限 1600 px，过大再降为 JPEG 0.8）。`pathToMarkdownImage()` 生成 `![alt](相对路径)`，空格/括号按 `%20` 转义、中文保持原样；桌面版由 Rust `image_markdown_path` 计算相对路径（同盘才给相对，否则给正斜杠绝对路径）。
+
+桌面版预览要把 `![x](pic.png)` 变成 WebView 可加载的地址：`rewriteLocalImages()` 在每次渲染后遍历 `img[src]`，识别为本地路径就换成 `convertFileSrc()` 生成的 `http://asset.localhost/...`（`assetProtocol.scope = ["**"]`），加载失败再兜底读成 data URI，并缓存结果与失败集合避免重复 I/O。浏览器版不改写，交给浏览器按页面位置解析。
+
+> 原计划中的 Blob 相对路径缓存与 IndexedDB `images` store 仍未启用：内嵌 data URI 已覆盖自包含场景，路径引用由磁盘承担；`images` store 保留在 schema 中供后续多附件版本使用。
 
 **已知限制**：预览区仍按浏览器默认行为加载 `http(s):` 外链图片（会产生一次网络请求，离线时裂图），但 DOCX 不会把它们带进去。
 
@@ -902,6 +914,7 @@ V1 中所有内置模块**通过同一注册表挂载**，从而验证扩展点�
 | 构建 | PowerShell 内联为单文件 | 同一份 HTML 复制到 `desktop/app/index.html`，由 `tauri build` 内嵌进 exe | 仅构建层 |
 | 打印 | `window.print()` | WebView2 同能力 | 不变 |
 | 文件关联 | 无 | HKCU 写 `Software\Classes`，不申请管理员权限 | 新增 |
+| 本地图片 | 浏览器自行解析相对路径 | `pick_image` / `read_image_data_url` / `image_markdown_path` + `assetProtocol` | 仅图片链路 |
 
 **关键实现事实**
 
@@ -912,6 +925,8 @@ V1 中所有内置模块**通过同一注册表挂载**，从而验证扩展点�
 - **默认程序限制**：Windows 10/11 的 `UserChoice` 带哈希校验，**程序无法静默把自己设为默认**。本实现写 `Software\Classes` + `OpenWithProgids` + `Applications\`，让程序出现在「打开方式」列表，再由用户勾选一次「始终使用此应用」。
 - **体积**：6.8 MB 单 exe（`opt-level="s"` + LTO + `strip`），运行时依赖系统 WebView2（Win11 自带，Win10 1903+ 多数已装）。
 - **拖放**：窗口配置 `dragDropEnabled: false`，把 HTML5 拖放交还页面，保证粘贴 / 拖入图片仍然工作。
+- **本地图片预览**：WebView2 的页面源是 `http://tauri.localhost`，直接写 `file:///...` 会被拦。所以开启 `app.security.assetProtocol`（`scope: ["**"]`），前端用 `convertFileSrc()` 把绝对路径换成 `http://asset.localhost/...`；若 asset 协议不可用，`img.onerror` 兜底调 `read_image_data_url` 读成 data URI，结果按路径缓存。
+- **相对路径**：`image_markdown_path(base_file, image)` 用 `Path::components()` 逐段比对算出 `../` 形式；跨盘或文档未保存时退回正斜杠绝对路径。图片写入的仍是普通 Markdown 路径，换编辑器同样能识别。
 
 ---
 
