@@ -687,6 +687,10 @@ $('#toolbar').addEventListener('click', event => {
   else if (action === 'docx') exportDocx();
   else if (action === 'theme') setStatus('主题: ' + theme.cycle());
   else if (action === 'print-mode') printController.setMode(printController.getMode() === 'print' ? 'read' : 'print');
+  else if (action === 'exit-preview') {
+    printController.setMode('read');
+    setStatus('已退出打印预览，回到编辑');
+  }
   else if (action === 'zoom-in') printController.stepZoom(1);
   else if (action === 'zoom-out') printController.stepZoom(-1);
   else if (action === 'fit') printController.setZoom(1);
@@ -765,8 +769,16 @@ $('#new-dialog').addEventListener('click', async event => {
   if (event.target === dialog || event.target.closest('[data-close]')) dialog.classList.remove('open');
 });
 window.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
   const dialog = $('#new-dialog');
-  if (event.key === 'Escape' && dialog && dialog.classList.contains('open')) dialog.classList.remove('open');
+  if (dialog && dialog.classList.contains('open')) { dialog.classList.remove('open'); return; }
+  // 打印设置对话框自己处理 Esc（并 stopPropagation），这里兜底
+  if (printSetup.isOpen && printSetup.isOpen()) { printSetup.close(); return; }
+  // 打印预览是「全屏」状态，Esc 是用户最直觉的退出方式
+  if (printController.getMode() === 'print') {
+    printController.setMode('read');
+    setStatus('已退出打印预览，回到编辑');
+  }
 });
 
 /* 图片：粘贴截图 / 拖入图片文件 / 对话框选择，三种入口统一走这里。

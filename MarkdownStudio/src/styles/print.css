@@ -10,7 +10,11 @@
 }
 
 .print-source, .print-pages { display: none; }
-.print-pages { --page-w: 170mm; --page-h: 267mm; }
+.print-pages {
+  --page-w: 210mm; --page-h: 297mm;
+  --content-w: 170mm; --content-h: 267mm;
+  --margin-top: 15mm; --margin-right: 20mm; --margin-bottom: 15mm; --margin-left: 20mm;
+}
 
 /* 屏幕上的打印预览 */
 body.mdsl-print-mode .workspace,
@@ -28,8 +32,11 @@ body.mdsl-print-mode .print-pages {
 }
 
 .print-page {
+  /* 白纸 = 整张纸；页边距用 padding 表现，屏幕预览才能看到真实的留白 */
   width: var(--page-w);
   min-height: var(--page-h);
+  box-sizing: border-box;
+  padding: var(--margin-top) var(--margin-right) var(--margin-bottom) var(--margin-left);
   margin: 0 auto 14mm;
   background: #ffffff;
   color: #14212e;
@@ -122,6 +129,8 @@ body.mdsl-print-mode .print-pages {
     min-height: 0 !important;
     height: auto !important;
     margin: 0 !important;
+    /* 真实出纸的留白由 @page margin 负责，这里必须清零，否则会叠加两份边距 */
+    padding: 0 !important;
     box-shadow: none !important;
     break-after: page;
     page-break-after: always;

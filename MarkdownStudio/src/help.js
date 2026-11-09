@@ -136,7 +136,8 @@ const HELP = [
         title: '打印与导出',
         rows: [
           { syntax: '打印设置', desc: '在打印预览模式的工具栏里点「页面设置」（或直接按 Ctrl+P）：选纸张（A4 / A3 / B5 / Letter）、方向与页边距（常规 / 窄 / 宽 / 自定义四边 mm），点「打印」即调系统打印机', insert: null },
-          { syntax: '打印预览', desc: '按当前纸张与页边距预分页，自动加标题+日期页眉与 Page X of Y 页码；预览工具栏里有缩放、方向、页面设置与打印', insert: null },
+          { syntax: '打印预览', desc: '白纸即整张纸，页边距以留白显示（所见即所得）；按当前纸张与边距预分页，自动加标题+日期页眉与 Page X of Y 页码；预览工具栏有退出、缩放、方向、页面设置与打印', insert: null },
+          { syntax: '退出预览', desc: '预览工具栏最左侧的「← 退出预览」，或直接按 Esc，即可回到编辑；Ctrl+P 开的设置对话框按 Esc 只关对话框', insert: null },
           { syntax: '导出 PDF', desc: '用当前设置直接打开系统打印对话框，选「另存为 PDF」即可导出；文字可选中、保真度最高', insert: null },
           { syntax: '导出 DOCX', desc: '标题映射为 Word Heading 1~3，表格、代码、内嵌图片（自动居中）、页眉页码都会保留；只支持内嵌图片，外链/相对路径会降级为占位文字并在状态栏提示', insert: null },
           { syntax: 'Word 里的公式', desc: '$...$ / $$...$$ 会转成 Word 原生公式（OMML），在 Word 中可双击编辑；极复杂公式若转换失败会保留红色源码', insert: null },

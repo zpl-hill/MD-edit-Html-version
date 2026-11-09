@@ -105,6 +105,9 @@ button { font-family: inherit; cursor: pointer; }
 body.mdsl-print-mode .print-tools { display: inline-flex; }
 .print-tools .print-go { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .print-tools .print-go:hover { filter: brightness(1.1); }
+/* 退出预览是「离开」动作，用中性描边，视觉上让位给蓝色的「打印」 */
+.print-tools .print-exit { border-style: dashed; color: var(--muted); }
+.print-tools .print-exit:hover { color: var(--fg); border-style: solid; }
 
 /* 打印预览是聚焦模式：隐藏与出纸无关的按钮，避免「页面设置」「打印」被挤出视口右侧。
    退出预览后这些按钮立即恢复。 */
@@ -118,11 +121,15 @@ body.mdsl-print-mode .toolbar-actions > [data-action="help"],
 body.mdsl-print-mode .toolbar-actions > [data-action="docx"],
 body.mdsl-print-mode .toolbar-actions > [data-action="theme"],
 body.mdsl-print-mode .toolbar-actions > [data-action="about"],
+/* 预览模式里「打印预览」是冗余的（进来就在预览里），它的替代者是「退出预览」 */
+body.mdsl-print-mode .toolbar-actions > [data-action="print-mode"],
+/* 「导出 PDF」与蓝色「打印」同为 window.print，保留一个即可 */
+body.mdsl-print-mode .toolbar-actions > [data-action="pdf"],
 body.mdsl-print-mode .toolbar-actions > .view-switch,
 body.mdsl-print-mode .toolbar-actions > .ui-scale-group,
 body.mdsl-print-mode .toolbar-actions > .toolbar-sep { display: none; }
-/* 其余按钮隐藏后，用首个可见按钮把整组推回右侧，与默认模式的按钮位置保持一致 */
-body.mdsl-print-mode .toolbar-actions > [data-action="print-mode"] { margin-left: auto; }
+/* 其余按钮隐藏后，用打印工具组把整排推回右侧，与默认模式的按钮位置保持一致 */
+body.mdsl-print-mode .print-tools { margin-left: auto; }
 
 /* ---------- Banner ---------- */
 .banner {

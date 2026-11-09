@@ -114,6 +114,9 @@ button { font-family: inherit; cursor: pointer; }
 body.mdsl-print-mode .print-tools { display: inline-flex; }
 .print-tools .print-go { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .print-tools .print-go:hover { filter: brightness(1.1); }
+/* 退出预览是「离开」动作，用中性描边，视觉上让位给蓝色的「打印」 */
+.print-tools .print-exit { border-style: dashed; color: var(--muted); }
+.print-tools .print-exit:hover { color: var(--fg); border-style: solid; }
 
 /* 打印预览是聚焦模式：隐藏与出纸无关的按钮，避免「页面设置」「打印」被挤出视口右侧。
    退出预览后这些按钮立即恢复。 */
@@ -127,11 +130,15 @@ body.mdsl-print-mode .toolbar-actions > [data-action="help"],
 body.mdsl-print-mode .toolbar-actions > [data-action="docx"],
 body.mdsl-print-mode .toolbar-actions > [data-action="theme"],
 body.mdsl-print-mode .toolbar-actions > [data-action="about"],
+/* 预览模式里「打印预览」是冗余的（进来就在预览里），它的替代者是「退出预览」 */
+body.mdsl-print-mode .toolbar-actions > [data-action="print-mode"],
+/* 「导出 PDF」与蓝色「打印」同为 window.print，保留一个即可 */
+body.mdsl-print-mode .toolbar-actions > [data-action="pdf"],
 body.mdsl-print-mode .toolbar-actions > .view-switch,
 body.mdsl-print-mode .toolbar-actions > .ui-scale-group,
 body.mdsl-print-mode .toolbar-actions > .toolbar-sep { display: none; }
-/* 其余按钮隐藏后，用首个可见按钮把整组推回右侧，与默认模式的按钮位置保持一致 */
-body.mdsl-print-mode .toolbar-actions > [data-action="print-mode"] { margin-left: auto; }
+/* 其余按钮隐藏后，用打印工具组把整排推回右侧，与默认模式的按钮位置保持一致 */
+body.mdsl-print-mode .print-tools { margin-left: auto; }
 
 /* ---------- Banner ---------- */
 .banner {
@@ -631,7 +638,11 @@ body.view-reader .preview-pane .pane-title { justify-content: center; }
 }
 
 .print-source, .print-pages { display: none; }
-.print-pages { --page-w: 170mm; --page-h: 267mm; }
+.print-pages {
+  --page-w: 210mm; --page-h: 297mm;
+  --content-w: 170mm; --content-h: 267mm;
+  --margin-top: 15mm; --margin-right: 20mm; --margin-bottom: 15mm; --margin-left: 20mm;
+}
 
 /* 屏幕上的打印预览 */
 body.mdsl-print-mode .workspace,
@@ -649,8 +660,11 @@ body.mdsl-print-mode .print-pages {
 }
 
 .print-page {
+  /* 白纸 = 整张纸；页边距用 padding 表现，屏幕预览才能看到真实的留白 */
   width: var(--page-w);
   min-height: var(--page-h);
+  box-sizing: border-box;
+  padding: var(--margin-top) var(--margin-right) var(--margin-bottom) var(--margin-left);
   margin: 0 auto 14mm;
   background: #ffffff;
   color: #14212e;
@@ -743,6 +757,8 @@ body.mdsl-print-mode .print-pages {
     min-height: 0 !important;
     height: auto !important;
     margin: 0 !important;
+    /* 真实出纸的留白由 @page margin 负责，这里必须清零，否则会叠加两份边距 */
+    padding: 0 !important;
     box-shadow: none !important;
     break-after: page;
     page-break-after: always;
@@ -795,6 +811,7 @@ body.mdsl-print-mode .print-pages {
     <button class="tbtn" data-action="docx" title="导出 Word (Ctrl+Shift+W)">导出 DOCX</button>
 
     <div class="print-tools" aria-label="打印预览缩放与打印">
+      <button class="tbtn print-exit" data-action="exit-preview" title="退出打印预览，回到编辑 (Esc)">← 退出预览</button>
       <button class="tbtn icon-btn" data-action="zoom-out" title="缩小打印预览">−</button>
       <button class="tbtn icon-btn" data-action="fit" title="适应 100%">100%</button>
       <button class="tbtn icon-btn" data-action="zoom-in" title="放大打印预览">+</button>
@@ -31683,7 +31700,8 @@ const HELP = [
         title: '打印与导出',
         rows: [
           { syntax: '打印设置', desc: '在打印预览模式的工具栏里点「页面设置」（或直接按 Ctrl+P）：选纸张（A4 / A3 / B5 / Letter）、方向与页边距（常规 / 窄 / 宽 / 自定义四边 mm），点「打印」即调系统打印机', insert: null },
-          { syntax: '打印预览', desc: '按当前纸张与页边距预分页，自动加标题+日期页眉与 Page X of Y 页码；预览工具栏里有缩放、方向、页面设置与打印', insert: null },
+          { syntax: '打印预览', desc: '白纸即整张纸，页边距以留白显示（所见即所得）；按当前纸张与边距预分页，自动加标题+日期页眉与 Page X of Y 页码；预览工具栏有退出、缩放、方向、页面设置与打印', insert: null },
+          { syntax: '退出预览', desc: '预览工具栏最左侧的「← 退出预览」，或直接按 Esc，即可回到编辑；Ctrl+P 开的设置对话框按 Esc 只关对话框', insert: null },
           { syntax: '导出 PDF', desc: '用当前设置直接打开系统打印对话框，选「另存为 PDF」即可导出；文字可选中、保真度最高', insert: null },
           { syntax: '导出 DOCX', desc: '标题映射为 Word Heading 1~3，表格、代码、内嵌图片（自动居中）、页眉页码都会保留；只支持内嵌图片，外链/相对路径会降级为占位文字并在状态栏提示', insert: null },
           { syntax: 'Word 里的公式', desc: '$...$ / $$...$$ 会转成 Word 原生公式（OMML），在 Word 中可双击编辑；极复杂公式若转换失败会保留红色源码', insert: null },
@@ -33330,8 +33348,16 @@ function createPrintController(options) {
     const m = settings.margins;
     pageRule.textContent = '@page { size: ' + g.paper.css + ' ' + settings.orientation + '; margin: '
       + m.top + 'mm ' + m.right + 'mm ' + m.bottom + 'mm ' + m.left + 'mm; }';
-    pagesRoot.style.setProperty('--page-w', g.contentW + 'mm');
-    pagesRoot.style.setProperty('--page-h', g.contentH + 'mm');
+    /* 屏幕上预览的白色纸张 = 整张纸，页边距用 padding 表现（所见即所得）。
+       若只画可打印区，文字会紧贴白纸边缘，看起来像没有边距。 */
+    pagesRoot.style.setProperty('--page-w', g.widthMm + 'mm');
+    pagesRoot.style.setProperty('--page-h', g.heightMm + 'mm');
+    pagesRoot.style.setProperty('--content-w', g.contentW + 'mm');
+    pagesRoot.style.setProperty('--content-h', g.contentH + 'mm');
+    pagesRoot.style.setProperty('--margin-top', m.top + 'mm');
+    pagesRoot.style.setProperty('--margin-right', m.right + 'mm');
+    pagesRoot.style.setProperty('--margin-bottom', m.bottom + 'mm');
+    pagesRoot.style.setProperty('--margin-left', m.left + 'mm');
   }
 
   function today() {
@@ -33371,12 +33397,23 @@ function createPrintController(options) {
     pagesRoot.style.zoom = String(zoom);
   }
 
+  /* 预览页是整张纸，A3 横向（420mm≈1587px）会宽过普通窗口。
+     进入预览时按需缩小到能整页看见，但不放大（不改变用户对「100%」的理解）。 */
+  function fitZoom() {
+    const MM_PX = 96 / 25.4;
+    const avail = window.innerWidth - 32;
+    const pagePx = geometry().widthMm * MM_PX;
+    if (!(avail > 0) || pagePx <= avail) return 1;
+    return Math.max(0.5, Math.floor((avail / pagePx) * 20) / 20);
+  }
+
   function setMode(next) {
     mode = next === 'print' ? 'print' : 'read';
     document.body.classList.toggle('mdsl-print-mode', mode === 'print');
     if (mode === 'print') {
       ensurePageRule();
       const count = buildPages();
+      zoom = fitZoom();
       applyZoom();
       if (options.onStatus) options.onStatus('打印预览：' + count + ' 页 · ' + describe(settings));
     } else if (options.onStatus) {
@@ -33407,6 +33444,9 @@ function createPrintController(options) {
     ensurePageRule();
     if (mode === 'print') {
       const count = buildPages();
+      // 换纸张/方向后可能装不下了：只在需要时缩小，用户手动放大的值不被抢走
+      const fit = fitZoom();
+      if (fit < zoom) { zoom = fit; applyZoom(); }
       if (options.onStatus) options.onStatus('打印预览：' + count + ' 页 · ' + describe(settings));
     }
     if (changed && options.onSettings) options.onSettings(settings);
@@ -35365,6 +35405,10 @@ $('#toolbar').addEventListener('click', event => {
   else if (action === 'docx') exportDocx();
   else if (action === 'theme') setStatus('主题: ' + theme.cycle());
   else if (action === 'print-mode') printController.setMode(printController.getMode() === 'print' ? 'read' : 'print');
+  else if (action === 'exit-preview') {
+    printController.setMode('read');
+    setStatus('已退出打印预览，回到编辑');
+  }
   else if (action === 'zoom-in') printController.stepZoom(1);
   else if (action === 'zoom-out') printController.stepZoom(-1);
   else if (action === 'fit') printController.setZoom(1);
@@ -35443,8 +35487,16 @@ $('#new-dialog').addEventListener('click', async event => {
   if (event.target === dialog || event.target.closest('[data-close]')) dialog.classList.remove('open');
 });
 window.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
   const dialog = $('#new-dialog');
-  if (event.key === 'Escape' && dialog && dialog.classList.contains('open')) dialog.classList.remove('open');
+  if (dialog && dialog.classList.contains('open')) { dialog.classList.remove('open'); return; }
+  // 打印设置对话框自己处理 Esc（并 stopPropagation），这里兜底
+  if (printSetup.isOpen && printSetup.isOpen()) { printSetup.close(); return; }
+  // 打印预览是「全屏」状态，Esc 是用户最直觉的退出方式
+  if (printController.getMode() === 'print') {
+    printController.setMode('read');
+    setStatus('已退出打印预览，回到编辑');
+  }
 });
 
 /* 图片：粘贴截图 / 拖入图片文件 / 对话框选择，三种入口统一走这里。

@@ -69,10 +69,16 @@ const SET_NUM = (sel, value) => `(() => {
 const PAGE_RULE = `(() => { const el = document.getElementById('mdsl-page-rule'); return el ? el.textContent : null; })()`;
 const PAGE_STATE = `(() => {
   const root = document.getElementById('print-pages');
+  const first = root.querySelector('.print-page');
+  const cs = first ? getComputedStyle(first) : null;
   return {
     pages: root.querySelectorAll('.print-page').length,
     pageW: root.style.getPropertyValue('--page-w'),
     pageH: root.style.getPropertyValue('--page-h'),
+    contentW: root.style.getPropertyValue('--content-w'),
+    contentH: root.style.getPropertyValue('--content-h'),
+    padding: cs ? [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft] : null,
+    boxW: first ? Math.round(first.getBoundingClientRect().width / (Number(root.style.zoom) || 1)) : 0,
     printMode: document.body.classList.contains('mdsl-print-mode'),
     rule: (document.getElementById('mdsl-page-rule') || {}).textContent || null
   };
@@ -162,7 +168,12 @@ const LONG = Array.from({ length: 70 }, (_, i) =>
   const wide = await evaluate(PAGE_STATE);
   check('宽边距进入打印预览', wide.printMode === true && wide.pages > 0, `${wide.pages} 页`);
   check('宽边距 @page = 25mm 四边', /margin:\s*25mm 25mm 25mm 25mm/.test(wide.rule || ''), wide.rule);
-  check('宽边距预览页宽 160mm', wide.pageW === '160mm', wide.pageW);
+  // 白纸 = 整张纸，页边距用 padding 表现（否则文字会贴着纸边，看起来没有边距）
+  const mmOf = px => Math.round(parseFloat(px) * 25.4 / 96);
+  check('宽边距预览白纸 = 整张 A4 (210×297mm)', wide.pageW === '210mm' && wide.pageH === '297mm', wide.pageW + ' / ' + wide.pageH);
+  check('宽边距可打印区 160×247mm', wide.contentW === '160mm' && wide.contentH === '247mm', wide.contentW + ' / ' + wide.contentH);
+  check('页边距以 25mm padding 呈现（上右下左）', (wide.padding || []).map(mmOf).join(',') === '25,25,25,25', (wide.padding || []).map(mmOf).join(','));
+  check('白纸实际渲染宽度 ≈ 210mm', Math.abs(wide.boxW - 794) <= 3, wide.boxW + 'px');
 
   // 3) 切到 A3 横向 + 自定义 8mm
   await openSetup();
@@ -177,7 +188,9 @@ const LONG = Array.from({ length: 70 }, (_, i) =>
   await sleep(1500);
   const a3 = await evaluate(PAGE_STATE);
   check('A3 横向 @page 规则正确', /size:\s*A3 landscape/.test(a3.rule || '') && /margin:\s*8mm 8mm 8mm 8mm/.test(a3.rule || ''), a3.rule);
-  check('A3 横向可打印区 404×281mm', a3.pageW === '404mm' && a3.pageH === '281mm', a3.pageW + ' / ' + a3.pageH);
+  check('A3 横向白纸 = 420×297mm，可打印区 404×281mm',
+    a3.pageW === '420mm' && a3.pageH === '297mm' && a3.contentW === '404mm' && a3.contentH === '281mm',
+    `${a3.pageW} / ${a3.pageH} · ${a3.contentW} / ${a3.contentH}`);
   check('A3 横向页数少于 A4 纵向宽边距', a3.pages < wide.pages, `${a3.pages} < ${wide.pages}`);
 
   // 4) 点工具栏「打印」→ 必须真的调用 window.print
@@ -210,6 +223,35 @@ const LONG = Array.from({ length: 70 }, (_, i) =>
     restored.paper === 'a3' && restored.orientation === 'landscape' && restored.preset === 'custom' && restored.mt === '8',
     `${restored.paper}/${restored.orientation}/${restored.preset}/${restored.mt}`);
   check('刷新后 @page 仍是 A3 横向 8mm', /size:\s*A3 landscape/.test(restored.rule || ''), restored.rule);
+
+  // 7) 退出预览：工具栏「退出预览」按钮 + Esc 两种方式都必须能回到编辑
+  await openSetup();
+  await evaluate(`(document.querySelector('[data-print="preview"]').click(), true)`);
+  await sleep(1200);
+  const inPreview = await evaluate(`(() => {
+    const btn = document.querySelector('[data-action="exit-preview"]');
+    const vis = btn ? getComputedStyle(btn).display !== 'none' && btn.getBoundingClientRect().width > 0 : false;
+    return { mode: document.body.classList.contains('mdsl-print-mode'), btnVisible: vis };
+  })()`);
+  check('预览模式里「退出预览」按钮可见', inPreview.mode === true && inPreview.btnVisible === true,
+    `mode=${inPreview.mode} btn=${inPreview.btnVisible}`);
+
+  await evaluate(`(document.querySelector('[data-action="exit-preview"]').click(), true)`);
+  await sleep(600);
+  const afterExit = await evaluate(`(() => ({
+    mode: document.body.classList.contains('mdsl-print-mode'),
+    editorVisible: document.querySelector('.workspace').getBoundingClientRect().width > 0
+  }))()`);
+  check('点「退出预览」回到编辑且编辑器可见', afterExit.mode === false && afterExit.editorVisible === true,
+    `mode=${afterExit.mode} editor=${afterExit.editorVisible}`);
+
+  await evaluate(`(document.querySelector('[data-action="print-mode"]').click(), true)`);
+  await sleep(1200);
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+  await sleep(500);
+  const afterEsc = await evaluate(`document.body.classList.contains('mdsl-print-mode')`);
+  check('按 Esc 退出打印预览', afterEsc === false, `mode=${afterEsc}`);
 
   const failed = results.filter(r => !r.pass);
   console.log(`\n${failed.length === 0 ? 'ALL PASS' : 'FAILURES: ' + failed.length} (${results.length} checks)`);

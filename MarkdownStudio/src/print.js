@@ -85,8 +85,16 @@ export function createPrintController(options) {
     const m = settings.margins;
     pageRule.textContent = '@page { size: ' + g.paper.css + ' ' + settings.orientation + '; margin: '
       + m.top + 'mm ' + m.right + 'mm ' + m.bottom + 'mm ' + m.left + 'mm; }';
-    pagesRoot.style.setProperty('--page-w', g.contentW + 'mm');
-    pagesRoot.style.setProperty('--page-h', g.contentH + 'mm');
+    /* 屏幕上预览的白色纸张 = 整张纸，页边距用 padding 表现（所见即所得）。
+       若只画可打印区，文字会紧贴白纸边缘，看起来像没有边距。 */
+    pagesRoot.style.setProperty('--page-w', g.widthMm + 'mm');
+    pagesRoot.style.setProperty('--page-h', g.heightMm + 'mm');
+    pagesRoot.style.setProperty('--content-w', g.contentW + 'mm');
+    pagesRoot.style.setProperty('--content-h', g.contentH + 'mm');
+    pagesRoot.style.setProperty('--margin-top', m.top + 'mm');
+    pagesRoot.style.setProperty('--margin-right', m.right + 'mm');
+    pagesRoot.style.setProperty('--margin-bottom', m.bottom + 'mm');
+    pagesRoot.style.setProperty('--margin-left', m.left + 'mm');
   }
 
   function today() {
@@ -126,12 +134,23 @@ export function createPrintController(options) {
     pagesRoot.style.zoom = String(zoom);
   }
 
+  /* 预览页是整张纸，A3 横向（420mm≈1587px）会宽过普通窗口。
+     进入预览时按需缩小到能整页看见，但不放大（不改变用户对「100%」的理解）。 */
+  function fitZoom() {
+    const MM_PX = 96 / 25.4;
+    const avail = window.innerWidth - 32;
+    const pagePx = geometry().widthMm * MM_PX;
+    if (!(avail > 0) || pagePx <= avail) return 1;
+    return Math.max(0.5, Math.floor((avail / pagePx) * 20) / 20);
+  }
+
   function setMode(next) {
     mode = next === 'print' ? 'print' : 'read';
     document.body.classList.toggle('mdsl-print-mode', mode === 'print');
     if (mode === 'print') {
       ensurePageRule();
       const count = buildPages();
+      zoom = fitZoom();
       applyZoom();
       if (options.onStatus) options.onStatus('打印预览：' + count + ' 页 · ' + describe(settings));
     } else if (options.onStatus) {
@@ -162,6 +181,9 @@ export function createPrintController(options) {
     ensurePageRule();
     if (mode === 'print') {
       const count = buildPages();
+      // 换纸张/方向后可能装不下了：只在需要时缩小，用户手动放大的值不被抢走
+      const fit = fitZoom();
+      if (fit < zoom) { zoom = fit; applyZoom(); }
       if (options.onStatus) options.onStatus('打印预览：' + count + ' 页 · ' + describe(settings));
     }
     if (changed && options.onSettings) options.onSettings(settings);

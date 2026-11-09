@@ -97,17 +97,38 @@ function check(name, pass, detail) {
       printMode: document.body.classList.contains('mdsl-print-mode'),
       pages: root.querySelectorAll('.print-page').length,
       pageW: root.style.getPropertyValue('--page-w'),
+      contentW: root.style.getPropertyValue('--content-w'),
       rule: (document.getElementById('mdsl-page-rule') || {}).textContent || '',
       printToolsVisible: getComputedStyle(document.querySelector('.print-tools')).display
     };
   })()`);
   check('桌面版进入打印预览并分页', preview.printMode === true && preview.pages > 0, `${preview.pages} 页`);
   check('窄边距 @page = 10mm 四边', /margin:\s*10mm 10mm 10mm 10mm/.test(preview.rule), preview.rule);
-  check('预览页宽 190mm', preview.pageW === '190mm', preview.pageW);
+  check('预览白纸 = 整张 A4 (210mm)，可打印区 190mm', preview.pageW === '210mm' && preview.contentW === '190mm',
+    preview.pageW + ' / ' + preview.contentW);
   check('预览模式下出现打印工具组（含打印按钮）', preview.printToolsVisible !== 'none', preview.printToolsVisible);
 
   const toolbarHasPrint = await evaluate(`!!document.querySelector('.print-tools [data-action="print"]')`);
   check('预览工具栏含「打印」按钮', toolbarHasPrint);
+
+  // 退出预览：按钮必须真的可见且能回到编辑（WebView2 下也验证一次）
+  const exitState = await evaluate(`(() => {
+    const btn = document.querySelector('[data-action="exit-preview"]');
+    if (!btn) return { found: false };
+    const r = btn.getBoundingClientRect();
+    const inView = r.width > 0 && r.right <= window.innerWidth + 1 && r.left >= 0;
+    btn.click();
+    return { found: true, inView, text: btn.textContent.trim() };
+  })()`);
+  await sleep(700);
+  const exited = await evaluate(`(() => ({
+    mode: document.body.classList.contains('mdsl-print-mode'),
+    editorVisible: document.querySelector('.workspace').getBoundingClientRect().width > 0
+  }))()`);
+  check('「退出预览」按钮完整可见且可点击', exitState.found === true && exitState.inView === true,
+    `${exitState.text || ''} inView=${exitState.inView}`);
+  check('桌面版点「退出预览」回到编辑', exited.mode === false && exited.editorVisible === true,
+    `mode=${exited.mode} editor=${exited.editorVisible}`);
 
   const exceptions = await evaluate(`window.__mdslErrors ? window.__mdslErrors.length : 0`);
   check('无脚本异常', exceptions === 0, String(exceptions));
