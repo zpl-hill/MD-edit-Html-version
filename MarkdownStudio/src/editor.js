@@ -13,6 +13,9 @@ export function createEditor(options) {
     '.cm-gutters': { backgroundColor: 'var(--gutter-bg)', color: 'var(--gutter-fg)', border: 'none', fontSize: 'var(--fs-editor)' },
     '.cm-activeLine': { backgroundColor: 'var(--active-line)' },
     '.cm-activeLineGutter': { backgroundColor: 'var(--active-line)' },
+    // 选区：.cm-selectionLayer 在 CM6 里是 z-index:-2（位于行背景之下），
+    // 因此 .cm-activeLine 的底色必须半透明（见 app.css / dark.css 的 --active-line），
+    // 否则不透明的行底色会把选中文字的高亮整块盖住。
     '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { backgroundColor: 'var(--selection) !important' },
     '&.cm-focused': { outline: 'none' },
     '.cm-scroller': { fontFamily: 'var(--font-mono)' }

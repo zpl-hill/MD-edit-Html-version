@@ -36,15 +36,17 @@
     <button class="tbtn" data-action="help" title="Markdown 与公式语法速查 (F1)">语法帮助</button>
 
     <span class="toolbar-sep"></span>
-    <button class="tbtn" data-action="print-mode" title="切换打印预览">打印预览</button>
-    <button class="tbtn" data-action="pdf" title="打印 / 另存为 PDF (Ctrl+Shift+P)">导出 PDF</button>
+    <button class="tbtn" data-action="print-mode" title="打印预览：预分页 + 页眉页码，可设置纸张/方向/页边距并打印">打印预览</button>
+    <button class="tbtn" data-action="pdf" title="直接用当前设置打印 / 另存为 PDF (Ctrl+Shift+P)">导出 PDF</button>
     <button class="tbtn" data-action="docx" title="导出 Word (Ctrl+Shift+W)">导出 DOCX</button>
 
-    <div class="print-tools" aria-label="打印预览缩放与方向">
+    <div class="print-tools" aria-label="打印预览缩放与打印">
       <button class="tbtn icon-btn" data-action="zoom-out" title="缩小打印预览">−</button>
       <button class="tbtn icon-btn" data-action="fit" title="适应 100%">100%</button>
       <button class="tbtn icon-btn" data-action="zoom-in" title="放大打印预览">+</button>
-      <button class="tbtn" data-action="orientation" title="纵向 / 横向">方向</button>
+      <button class="tbtn" data-action="orientation" title="纵向 / 横向快速切换">方向</button>
+      <button class="tbtn" data-action="print-setup" title="纸张、方向、页边距">页面设置</button>
+      <button class="tbtn print-go" data-action="print" title="打开系统打印对话框 (Ctrl+P)">打印</button>
     </div>
 
     <span class="toolbar-sep"></span>
@@ -162,6 +164,50 @@
       <button class="tbtn" type="button" data-new="cancel">取消</button>
     </div>
     <p class="new-doc-note">「保存」会下载 .md 文件到本机。无论选哪种，旧文档的自动保存草稿都会被清除，避免刷新后恢复出上一份内容；已保存过的文件仍可从「最近文件」重新打开。</p>
+  </div>
+</div>
+
+<div class="mdsl-dialog" id="print-dialog">
+  <div class="dialog-card print-card" role="dialog" aria-modal="true" aria-labelledby="print-dialog-title">
+    <div class="dialog-head"><strong id="print-dialog-title">打印设置</strong><button data-close="1" aria-label="关闭">×</button></div>
+
+    <div class="print-rows">
+      <div class="print-row">
+        <span class="print-label">纸张</span>
+        <select id="print-paper" class="print-input" aria-label="纸张大小"></select>
+        <span class="print-label">方向</span>
+        <select id="print-orientation" class="print-input" aria-label="打印方向">
+          <option value="portrait">纵向</option>
+          <option value="landscape">横向</option>
+        </select>
+      </div>
+
+      <div class="print-row">
+        <span class="print-label">页边距</span>
+        <select id="print-margin-preset" class="print-input print-wide" aria-label="页边距预设"></select>
+      </div>
+
+      <div class="print-row print-mm-row">
+        <span class="print-label">四边</span>
+        <div class="print-mm">
+          <label>上 <input type="number" id="print-mt" min="0" max="60" step="1"> mm</label>
+          <label>下 <input type="number" id="print-mb" min="0" max="60" step="1"> mm</label>
+          <label>左 <input type="number" id="print-ml" min="0" max="60" step="1"> mm</label>
+          <label>右 <input type="number" id="print-mr" min="0" max="60" step="1"> mm</label>
+        </div>
+      </div>
+    </div>
+
+    <p class="print-layout-note" id="print-layout-note"></p>
+
+    <p class="print-tip">点「打印」会打开系统打印对话框：在那里选打印机、份数、单双面，也可以选「另存为 PDF」。
+      因为纸张与边距已经由这里固定，对话框里<b>边距保持「默认」、缩放保持 100%</b>，打出来才和预览一致。</p>
+
+    <div class="print-foot">
+      <button class="tbtn" type="button" data-print="cancel">取消</button>
+      <button class="tbtn" type="button" data-print="preview">预览</button>
+      <button class="tbtn print-primary" type="button" data-print="go">打印</button>
+    </div>
   </div>
 </div>
 

@@ -13,8 +13,9 @@
   --editor-fg: #dce4ee;
   --gutter-bg: #151d27;
   --gutter-fg: #64748b;
-  --active-line: #202c3a;
-  --selection: #2b4f70;
+  /* 半透明：避免不透明的当前行底色盖住 z-index:-2 的选区图层 */
+  --active-line: rgba(111, 178, 236, .08);
+  --selection: #2f5a7e;
   --code-bg: #141c26;
 }
 

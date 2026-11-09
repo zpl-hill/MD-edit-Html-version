@@ -16,6 +16,7 @@ import { createImageViewer } from "./imageViewer.js";
 import { createFileService } from "./fileService.js";
 import { createDesktopBridge } from "./desktopBridge.js";
 import { createPrintController } from "./print.js";
+import { createPrintSetup } from "./printSetup.js";
 import { createDocxExporter } from "./exportDocx.js";
 import { createHelpController } from "./help.js";
 import { imageFilesFromDataTransfer, imageFilesFromClipboard, fileToMarkdownImage, buildImageSnippet, toLocalAbsolutePath } from "./imageData.js";
@@ -264,8 +265,13 @@ const printController = createPrintController({
     const first = headings[0];
     return first ? first.text : fileService.getName();
   },
+  settings: getPref('printSettings', null),
+  onSettings: settings => setPref('printSettings', settings),
   onStatus: setStatus
 });
+
+/* 打印设置（纸张 / 方向 / 页边距）：对话框只改设置，出纸仍走系统打印对话框。 */
+const printSetup = createPrintSetup({ controller: printController });
 
 const docxExporter = createDocxExporter({
   desktop,
@@ -658,6 +664,7 @@ shortcuts.register('Ctrl+Shift+S', saveAs);
 shortcuts.register('Ctrl+F', doFind);
 shortcuts.register('Ctrl+H', doReplace);
 shortcuts.register('Ctrl+Shift+P', () => printController.print());
+shortcuts.register('Ctrl+P', () => printSetup.open());
 shortcuts.register('Ctrl+Shift+W', exportDocx);
 shortcuts.register('F6', cycleView);
 shortcuts.register('F8', () => { setStatus('主题: ' + theme.cycle()); });
@@ -675,6 +682,8 @@ $('#toolbar').addEventListener('click', event => {
   else if (action === 'save-as') saveAs();
   else if (action === 'image') imageInserter.open();
   else if (action === 'pdf') printController.print();
+  else if (action === 'print') printController.print();
+  else if (action === 'print-setup') printSetup.open();
   else if (action === 'docx') exportDocx();
   else if (action === 'theme') setStatus('主题: ' + theme.cycle());
   else if (action === 'print-mode') printController.setMode(printController.getMode() === 'print' ? 'read' : 'print');

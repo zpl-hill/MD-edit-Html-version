@@ -22,8 +22,10 @@
   --editor-fg: #24303d;
   --gutter-bg: #f7f9fb;
   --gutter-fg: #9aa8b7;
-  --active-line: #f0f5fb;
-  --selection: #cfe4f7;
+  /* 当前行底色必须半透明：CM6 的 .cm-selectionLayer 是 z-index:-2，位于行背景之下，
+     不透明的行底色会把选区高亮整个盖住（只剩整行变蓝、选中的字不亮）。 */
+  --active-line: rgba(15, 90, 160, .06);
+  --selection: #bfddf8;
   --code-bg: #f4f6f8;
   --font-sans: "Segoe UI", "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
   --font-mono: "Cascadia Code", "Consolas", "SFMono-Regular", "Microsoft YaHei", monospace;
@@ -107,9 +109,29 @@ button { font-family: inherit; cursor: pointer; }
 .view-switch .tbtn.active { background: rgba(255,255,255,.27); border-color: rgba(255,255,255,.38); font-weight: 600; }
 .ui-scale-group { display: inline-flex; align-items: center; gap: 2px; flex: 0 0 auto; }
 .ui-scale-label { font-size: var(--fs-tiny); opacity: .75; padding: 0 2px; white-space: nowrap; min-width: calc(34px * var(--ui-scale)); text-align: center; }
-/* 打印预览的缩放/方向只在打印模式下出现，避免默认工具栏过挤 */
+/* 打印预览的缩放/方向/打印只在打印模式下出现，避免默认工具栏过挤 */
 .print-tools { display: none; align-items: center; gap: calc(6px * var(--ui-scale)); flex: 0 0 auto; }
 body.mdsl-print-mode .print-tools { display: inline-flex; }
+.print-tools .print-go { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.print-tools .print-go:hover { filter: brightness(1.1); }
+
+/* 打印预览是聚焦模式：隐藏与出纸无关的按钮，避免「页面设置」「打印」被挤出视口右侧。
+   退出预览后这些按钮立即恢复。 */
+body.mdsl-print-mode .toolbar-actions > [data-action="new"],
+body.mdsl-print-mode .toolbar-actions > [data-action="open"],
+body.mdsl-print-mode .toolbar-actions > [data-action="save"],
+body.mdsl-print-mode .toolbar-actions > [data-action="save-as"],
+body.mdsl-print-mode .toolbar-actions > [data-action="image"],
+body.mdsl-print-mode .toolbar-actions > [data-action="find"],
+body.mdsl-print-mode .toolbar-actions > [data-action="help"],
+body.mdsl-print-mode .toolbar-actions > [data-action="docx"],
+body.mdsl-print-mode .toolbar-actions > [data-action="theme"],
+body.mdsl-print-mode .toolbar-actions > [data-action="about"],
+body.mdsl-print-mode .toolbar-actions > .view-switch,
+body.mdsl-print-mode .toolbar-actions > .ui-scale-group,
+body.mdsl-print-mode .toolbar-actions > .toolbar-sep { display: none; }
+/* 其余按钮隐藏后，用首个可见按钮把整组推回右侧，与默认模式的按钮位置保持一致 */
+body.mdsl-print-mode .toolbar-actions > [data-action="print-mode"] { margin-left: auto; }
 
 /* ---------- Banner ---------- */
 .banner {
@@ -469,6 +491,44 @@ body.view-reader .preview-pane .pane-title { justify-content: center; }
 :root .mdsl-dialog .image-card .tbtn.image-primary:hover { filter: brightness(1.08); }
 :root .mdsl-dialog .image-card .tbtn[disabled] { opacity: .55; cursor: default; }
 
+/* ---------- 打印设置对话框 ---------- */
+.dialog-card.print-card { width: min(580px, 94vw); }
+.print-rows { display: flex; flex-direction: column; gap: calc(12px * var(--ui-scale)); margin-top: calc(16px * var(--ui-scale)); }
+.print-row { display: flex; align-items: center; gap: calc(10px * var(--ui-scale)); flex-wrap: wrap; }
+.print-label { font-size: var(--fs-small); color: var(--muted); flex: 0 0 auto; }
+.print-input,
+.print-mm input {
+  background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 5px; padding: calc(7px * var(--ui-scale)) calc(9px * var(--ui-scale));
+  font-size: var(--fs-small); font-family: var(--font-sans);
+}
+.print-input { min-width: calc(170px * var(--ui-scale)); }
+.print-input.print-wide { flex: 1 1 auto; }
+.print-input:focus,
+.print-mm input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); outline: none; }
+.print-mm { display: flex; align-items: center; gap: calc(10px * var(--ui-scale)); flex-wrap: wrap; }
+.print-mm label { display: inline-flex; align-items: center; gap: calc(4px * var(--ui-scale)); font-size: var(--fs-tiny); color: var(--muted); }
+.print-mm input { width: calc(64px * var(--ui-scale)); text-align: center; }
+.print-mm input:disabled { opacity: 1; background: var(--gutter-bg); color: var(--muted); border-style: dashed; cursor: not-allowed; }
+.print-layout-note {
+  margin: calc(14px * var(--ui-scale)) 0 0; padding: calc(8px * var(--ui-scale)) calc(11px * var(--ui-scale));
+  background: var(--accent-soft); border: 1px solid var(--border); border-radius: 5px;
+  font-size: var(--fs-small); color: var(--fg); line-height: 1.6;
+}
+.print-layout-note.warn { background: #fff4e5; border-color: #f0c48a; color: #8a4b0f; }
+.print-tip { margin: calc(10px * var(--ui-scale)) 0 0; font-size: var(--fs-tiny); color: var(--muted); line-height: 1.7; }
+.print-tip b { color: var(--fg); }
+.print-foot { display: flex; justify-content: flex-end; gap: calc(8px * var(--ui-scale)); margin-top: calc(18px * var(--ui-scale)); }
+:root .mdsl-dialog .print-card .tbtn {
+  background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+  padding: calc(7px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  font-size: var(--fs-small); border-radius: 4px; cursor: pointer; white-space: nowrap;
+}
+:root .mdsl-dialog .print-card .tbtn:hover { background: var(--accent-soft); border-color: var(--accent); }
+:root .mdsl-dialog .print-card .tbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:root .mdsl-dialog .print-card .tbtn.print-primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+:root .mdsl-dialog .print-card .tbtn.print-primary:hover { filter: brightness(1.08); }
+
 /* ---------- Help dialog ---------- */
 .help-card { width: min(960px, 94vw); display: flex; flex-direction: column; }
 .help-tabs { display: flex; gap: calc(4px * var(--ui-scale)); margin: calc(12px * var(--ui-scale)) 0 0; border-bottom: 1px solid var(--border); }
@@ -526,8 +586,9 @@ body.view-reader .preview-pane .pane-title { justify-content: center; }
   --editor-fg: #dce4ee;
   --gutter-bg: #151d27;
   --gutter-fg: #64748b;
-  --active-line: #202c3a;
-  --selection: #2b4f70;
+  /* 半透明：避免不透明的当前行底色盖住 z-index:-2 的选区图层 */
+  --active-line: rgba(111, 178, 236, .08);
+  --selection: #2f5a7e;
   --code-bg: #141c26;
 }
 
@@ -729,15 +790,17 @@ body.mdsl-print-mode .print-pages {
     <button class="tbtn" data-action="help" title="Markdown 与公式语法速查 (F1)">语法帮助</button>
 
     <span class="toolbar-sep"></span>
-    <button class="tbtn" data-action="print-mode" title="切换打印预览">打印预览</button>
-    <button class="tbtn" data-action="pdf" title="打印 / 另存为 PDF (Ctrl+Shift+P)">导出 PDF</button>
+    <button class="tbtn" data-action="print-mode" title="打印预览：预分页 + 页眉页码，可设置纸张/方向/页边距并打印">打印预览</button>
+    <button class="tbtn" data-action="pdf" title="直接用当前设置打印 / 另存为 PDF (Ctrl+Shift+P)">导出 PDF</button>
     <button class="tbtn" data-action="docx" title="导出 Word (Ctrl+Shift+W)">导出 DOCX</button>
 
-    <div class="print-tools" aria-label="打印预览缩放与方向">
+    <div class="print-tools" aria-label="打印预览缩放与打印">
       <button class="tbtn icon-btn" data-action="zoom-out" title="缩小打印预览">−</button>
       <button class="tbtn icon-btn" data-action="fit" title="适应 100%">100%</button>
       <button class="tbtn icon-btn" data-action="zoom-in" title="放大打印预览">+</button>
-      <button class="tbtn" data-action="orientation" title="纵向 / 横向">方向</button>
+      <button class="tbtn" data-action="orientation" title="纵向 / 横向快速切换">方向</button>
+      <button class="tbtn" data-action="print-setup" title="纸张、方向、页边距">页面设置</button>
+      <button class="tbtn print-go" data-action="print" title="打开系统打印对话框 (Ctrl+P)">打印</button>
     </div>
 
     <span class="toolbar-sep"></span>
@@ -855,6 +918,50 @@ body.mdsl-print-mode .print-pages {
       <button class="tbtn" type="button" data-new="cancel">取消</button>
     </div>
     <p class="new-doc-note">「保存」会下载 .md 文件到本机。无论选哪种，旧文档的自动保存草稿都会被清除，避免刷新后恢复出上一份内容；已保存过的文件仍可从「最近文件」重新打开。</p>
+  </div>
+</div>
+
+<div class="mdsl-dialog" id="print-dialog">
+  <div class="dialog-card print-card" role="dialog" aria-modal="true" aria-labelledby="print-dialog-title">
+    <div class="dialog-head"><strong id="print-dialog-title">打印设置</strong><button data-close="1" aria-label="关闭">×</button></div>
+
+    <div class="print-rows">
+      <div class="print-row">
+        <span class="print-label">纸张</span>
+        <select id="print-paper" class="print-input" aria-label="纸张大小"></select>
+        <span class="print-label">方向</span>
+        <select id="print-orientation" class="print-input" aria-label="打印方向">
+          <option value="portrait">纵向</option>
+          <option value="landscape">横向</option>
+        </select>
+      </div>
+
+      <div class="print-row">
+        <span class="print-label">页边距</span>
+        <select id="print-margin-preset" class="print-input print-wide" aria-label="页边距预设"></select>
+      </div>
+
+      <div class="print-row print-mm-row">
+        <span class="print-label">四边</span>
+        <div class="print-mm">
+          <label>上 <input type="number" id="print-mt" min="0" max="60" step="1"> mm</label>
+          <label>下 <input type="number" id="print-mb" min="0" max="60" step="1"> mm</label>
+          <label>左 <input type="number" id="print-ml" min="0" max="60" step="1"> mm</label>
+          <label>右 <input type="number" id="print-mr" min="0" max="60" step="1"> mm</label>
+        </div>
+      </div>
+    </div>
+
+    <p class="print-layout-note" id="print-layout-note"></p>
+
+    <p class="print-tip">点「打印」会打开系统打印对话框：在那里选打印机、份数、单双面，也可以选「另存为 PDF」。
+      因为纸张与边距已经由这里固定，对话框里<b>边距保持「默认」、缩放保持 100%</b>，打出来才和预览一致。</p>
+
+    <div class="print-foot">
+      <button class="tbtn" type="button" data-print="cancel">取消</button>
+      <button class="tbtn" type="button" data-print="preview">预览</button>
+      <button class="tbtn print-primary" type="button" data-print="go">打印</button>
+    </div>
   </div>
 </div>
 
@@ -31557,7 +31664,7 @@ const HELP = [
           { syntax: 'Ctrl+O / Ctrl+S', desc: '打开 .md 文件 / 保存并下载 .md 文件', insert: null },
           { syntax: 'Ctrl+F / Ctrl+H', desc: '编辑器内搜索 / 替换；阅读模式下 Ctrl+F 改为在预览内容里查找，Ctrl+H 会自动切回可编辑视图', insert: null },
           { syntax: '阅读模式查找', desc: 'Ctrl+F 打开查找条：输入即高亮、Enter / Shift+Enter 跳上下一个、Aa 区分大小写、Esc 关闭', insert: null },
-          { syntax: 'Ctrl+Shift+P / Ctrl+Shift+W', desc: '打印并另存为 PDF / 导出 Word DOCX', insert: null },
+          { syntax: 'Ctrl+P / Ctrl+Shift+P / Ctrl+Shift+W', desc: '打印设置（纸张/方向/边距）/ 直接用当前设置打印并另存为 PDF / 导出 Word DOCX', insert: null },
           { syntax: 'F6', desc: '循环切换视图：三栏 → 仅编辑 → 仅阅读', insert: null },
           { syntax: 'F8 / F1 / Esc', desc: '切换主题 / 打开本帮助 / 关闭弹窗', insert: null }
         ]
@@ -31575,8 +31682,9 @@ const HELP = [
       {
         title: '打印与导出',
         rows: [
-          { syntax: '打印预览', desc: '按 A4、上下 15mm / 左右 20mm 预分页，自动加标题+日期页眉与 Page X of Y 页码', insert: null },
-          { syntax: '导出 PDF', desc: '走浏览器原生打印，在对话框里选「另存为 PDF」；文字可选中、保真度最高', insert: null },
+          { syntax: '打印设置', desc: '在打印预览模式的工具栏里点「页面设置」（或直接按 Ctrl+P）：选纸张（A4 / A3 / B5 / Letter）、方向与页边距（常规 / 窄 / 宽 / 自定义四边 mm），点「打印」即调系统打印机', insert: null },
+          { syntax: '打印预览', desc: '按当前纸张与页边距预分页，自动加标题+日期页眉与 Page X of Y 页码；预览工具栏里有缩放、方向、页面设置与打印', insert: null },
+          { syntax: '导出 PDF', desc: '用当前设置直接打开系统打印对话框，选「另存为 PDF」即可导出；文字可选中、保真度最高', insert: null },
           { syntax: '导出 DOCX', desc: '标题映射为 Word Heading 1~3，表格、代码、内嵌图片（自动居中）、页眉页码都会保留；只支持内嵌图片，外链/相对路径会降级为占位文字并在状态栏提示', insert: null },
           { syntax: 'Word 里的公式', desc: '$...$ / $$...$$ 会转成 Word 原生公式（OMML），在 Word 中可双击编辑；极复杂公式若转换失败会保留红色源码', insert: null },
           { syntax: '阅读模式', desc: '只想读文档时点「阅读」：隐藏目录与编辑器，预览铺满窗口宽度、字号行距更舒适', insert: null }
@@ -32135,6 +32243,9 @@ function createEditor(options) {
     '.cm-gutters': { backgroundColor: 'var(--gutter-bg)', color: 'var(--gutter-fg)', border: 'none', fontSize: 'var(--fs-editor)' },
     '.cm-activeLine': { backgroundColor: 'var(--active-line)' },
     '.cm-activeLineGutter': { backgroundColor: 'var(--active-line)' },
+    // 选区：.cm-selectionLayer 在 CM6 里是 z-index:-2（位于行背景之下），
+    // 因此 .cm-activeLine 的底色必须半透明（见 app.css / dark.css 的 --active-line），
+    // 否则不透明的行底色会把选中文字的高亮整块盖住。
     '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { backgroundColor: 'var(--selection) !important' },
     '&.cm-focused': { outline: 'none' },
     '.cm-scroller': { fontFamily: 'var(--font-mono)' }
@@ -33133,28 +33244,94 @@ function paginate(sourceRoot, options) {
 return {paginate};
 })();
 const __mdsl_print = (() => {
-/* print.js — 打印模式、缩放、A4 预分页与 PDF 导出（保真优先）。 */
+/* print.js — 打印 / PDF 引擎：纸张、方向、页边距设置 + JS 预分页 + 系统打印对话框。
+   Chromium 不支持 CSS Paged Media 的 margin boxes（见 SDD ADR-010），
+   所以页眉/页码由 paginator.js 预先切成独立页面，@page 只负责纸张与页边距。 */
 const { paginate } = __mdsl_paginator;
 const ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+/* 纸张尺寸（mm）。@page 用 CSS 关键字而非裸尺寸：打印机会按名字匹配纸盒，
+   写成 210mm 297mm 时部分驱动会识别不出而缩放。 */
+const PAPERS = {
+  a4: { label: 'A4', css: 'A4', w: 210, h: 297 },
+  a3: { label: 'A3', css: 'A3', w: 297, h: 420 },
+  b5: { label: 'B5', css: 'B5', w: 176, h: 250 },
+  letter: { label: 'Letter', css: 'letter', w: 215.9, h: 279.4 }
+};
+
+/* 页边距预设（mm）。custom 表示用用户手填的四边值。 */
+const MARGIN_PRESETS = {
+  normal: { top: 15, right: 20, bottom: 15, left: 20 },
+  narrow: { top: 10, right: 10, bottom: 10, left: 10 },
+  wide: { top: 25, right: 25, bottom: 25, left: 25 },
+  custom: null
+};
+
+const HEADER_MM = 10;
+const FOOTER_MM = 9;
+
+function clampMm(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(60, Math.round(n * 10) / 10));
+}
+
+function normalizeMargins(input) {
+  const src = input || {};
+  return {
+    top: clampMm(src.top !== undefined ? src.top : 15),
+    right: clampMm(src.right !== undefined ? src.right : 20),
+    bottom: clampMm(src.bottom !== undefined ? src.bottom : 15),
+    left: clampMm(src.left !== undefined ? src.left : 20)
+  };
+}
+
+function normalizeSettings(input) {
+  const src = input || {};
+  const paper = PAPERS[src.paper] ? src.paper : 'a4';
+  const orientation = src.orientation === 'landscape' ? 'landscape' : 'portrait';
+  const preset = Object.prototype.hasOwnProperty.call(MARGIN_PRESETS, src.preset) ? src.preset : 'normal';
+  const margins = preset === 'custom'
+    ? normalizeMargins(src.margins)
+    : Object.assign({}, MARGIN_PRESETS[preset] || MARGIN_PRESETS.normal);
+  return { paper, orientation, preset, margins };
+}
 
 function createPrintController(options) {
   const pagesRoot = document.getElementById('print-pages');
   const sourceRoot = document.getElementById('print-source');
   let mode = 'read';
   let zoom = 1;
-  let orientation = 'portrait';
+  let settings = normalizeSettings(options.settings);
   let pageRule = null;
 
+  /* 版面几何：横纵向互换纸张的宽高，其它尺寸（可打印区）都由它推出来。 */
+  function geometry() {
+    const paper = PAPERS[settings.paper];
+    const landscape = settings.orientation === 'landscape';
+    return {
+      paper,
+      widthMm: landscape ? paper.h : paper.w,
+      heightMm: landscape ? paper.w : paper.h,
+      contentW: (landscape ? paper.h : paper.w) - settings.margins.left - settings.margins.right,
+      contentH: (landscape ? paper.w : paper.h) - settings.margins.top - settings.margins.bottom
+    };
+  }
+
+  /* @page 决定真实出纸的纸张与边距；--page-w/h 决定屏幕上预览页的尺寸。
+     两者必须由同一份设置驱动，否则「预览看到的」和「打出来的」会不一样。 */
   function ensurePageRule() {
     if (!pageRule) {
       pageRule = document.createElement('style');
       pageRule.id = 'mdsl-page-rule';
       document.head.appendChild(pageRule);
     }
-    pageRule.textContent = '@page { size: A4 ' + orientation + '; margin: 15mm 20mm 15mm 20mm; }';
-    const portrait = orientation === 'portrait';
-    pagesRoot.style.setProperty('--page-w', (portrait ? 170 : 257) + 'mm');
-    pagesRoot.style.setProperty('--page-h', (portrait ? 267 : 180) + 'mm');
+    const g = geometry();
+    const m = settings.margins;
+    pageRule.textContent = '@page { size: ' + g.paper.css + ' ' + settings.orientation + '; margin: '
+      + m.top + 'mm ' + m.right + 'mm ' + m.bottom + 'mm ' + m.left + 'mm; }';
+    pagesRoot.style.setProperty('--page-w', g.contentW + 'mm');
+    pagesRoot.style.setProperty('--page-h', g.contentH + 'mm');
   }
 
   function today() {
@@ -33167,18 +33344,27 @@ function createPrintController(options) {
     const html = options.getHtml();
     sourceRoot.innerHTML = html;
     Array.from(sourceRoot.querySelectorAll('.mdsl-anchor')).forEach(a => a.remove());
-    const portrait = orientation === 'portrait';
+    const g = geometry();
     const fragment = paginate(sourceRoot, {
-      pageWidthMm: portrait ? 210 : 297,
-      pageHeightMm: portrait ? 297 : 210,
-      marginMm: { top: 15, right: 20, bottom: 15, left: 20 },
-      headerMm: 10,
-      footerMm: 9,
+      pageWidthMm: g.widthMm,
+      pageHeightMm: g.heightMm,
+      marginMm: settings.margins,
+      headerMm: HEADER_MM,
+      footerMm: FOOTER_MM,
       title: options.getTitle() || 'Untitled',
       date: today()
     });
     pagesRoot.replaceChildren(fragment);
     return pagesRoot.querySelectorAll('.print-page').length;
+  }
+
+  function describe(target) {
+    const paper = PAPERS[target.paper] || PAPERS.a4;
+    const landscape = target.orientation === 'landscape';
+    const w = (landscape ? paper.h : paper.w) - target.margins.left - target.margins.right;
+    const h = (landscape ? paper.w : paper.h) - target.margins.top - target.margins.bottom;
+    return paper.label + ' ' + (landscape ? '横向' : '纵向')
+      + ' · 可打印区 ' + Math.max(0, Math.round(w)) + '×' + Math.max(0, Math.round(h)) + ' mm';
   }
 
   function applyZoom() {
@@ -33192,7 +33378,7 @@ function createPrintController(options) {
       ensurePageRule();
       const count = buildPages();
       applyZoom();
-      if (options.onStatus) options.onStatus('打印模式：' + count + ' 页 · A4 ' + (orientation === 'portrait' ? '纵向' : '横向'));
+      if (options.onStatus) options.onStatus('打印预览：' + count + ' 页 · ' + describe(settings));
     } else if (options.onStatus) {
       options.onStatus('阅读模式');
     }
@@ -33212,27 +33398,46 @@ function createPrintController(options) {
     return setZoom(ZOOMS[next]);
   }
 
-  function setOrientation(value) {
-    orientation = value === 'landscape' ? 'landscape' : 'portrait';
+  /* 设置变更：更新 @page / 预览尺寸；已在预览模式则立即重新分页。
+     返回归一化后的设置，调用方拿它去持久化。 */
+  function setSettings(patch) {
+    const next = normalizeSettings(Object.assign({}, settings, patch || {}));
+    const changed = JSON.stringify(next) !== JSON.stringify(settings);
+    settings = next;
     ensurePageRule();
-    if (mode === 'print') setMode('print');
-    return orientation;
+    if (mode === 'print') {
+      const count = buildPages();
+      if (options.onStatus) options.onStatus('打印预览：' + count + ' 页 · ' + describe(settings));
+    }
+    if (changed && options.onSettings) options.onSettings(settings);
+    return settings;
   }
 
+  function setOrientation(value) {
+    return setSettings({ orientation: value === 'landscape' ? 'landscape' : 'portrait' }).orientation;
+  }
+
+  /* 真正的出纸动作：交给系统打印对话框（选打印机、份数、单双面、另存为 PDF）。
+     我们用 @page 固定纸张与边距，因此对话框里「边距」保持「默认」、「缩放」保持 100% 即可。 */
   function print() {
     ensurePageRule();
     let count = 0;
     try {
       count = buildPages();
-      if (options.onStatus) options.onStatus('已生成 ' + count + ' 页，请在打印对话框中选择「另存为 PDF」');
+      if (options.onStatus) options.onStatus('已生成 ' + count + ' 页 · ' + describe(settings) + ' — 正在打开打印对话框');
     } catch (e) {
       console.warn('[print] 预分页失败，回退浏览器打印:', e);
       pagesRoot.replaceChildren();
-      if (options.onStatus) options.onStatus('预分页不可用，已回退浏览器原生打印（请勾选页眉和页脚）');
+      if (options.onStatus) options.onStatus('预分页不可用，已回退浏览器原生打印（请在对话框里勾选页眉页脚）');
     }
     document.body.classList.add('mdsl-printing');
     requestAnimationFrame(() => {
-      window.print();
+      try {
+        window.print();
+      } catch (e) {
+        console.warn('[print] window.print 不可用:', e);
+        if (options.onStatus) options.onStatus('当前环境不支持直接打印，请用「导出 PDF」或浏览器打印');
+      }
       setTimeout(() => document.body.classList.remove('mdsl-printing'), 800);
     });
     return count;
@@ -33241,13 +33446,182 @@ function createPrintController(options) {
   ensurePageRule();
 
   return {
-    setMode, setZoom, stepZoom, setOrientation, print, buildPages,
-    getMode: () => mode, getZoom: () => zoom, getOrientation: () => orientation,
+    setMode, setZoom, stepZoom, setOrientation, print, buildPages, setSettings,
+    getMode: () => mode,
+    getZoom: () => zoom,
+    getOrientation: () => settings.orientation,
+    getSettings: () => JSON.parse(JSON.stringify(settings)),
+    getLayout: () => {
+      const g = geometry();
+      return {
+        paper: settings.paper,
+        paperLabel: g.paper.label,
+        orientation: settings.orientation,
+        margins: Object.assign({}, settings.margins),
+        preset: settings.preset,
+        widthMm: g.widthMm,
+        heightMm: g.heightMm,
+        contentW: g.contentW,
+        contentH: g.contentH
+      };
+    },
+    describe: () => describe(settings),
     zooms: ZOOMS
   };
 }
 
-return {createPrintController};
+return {PAPERS,MARGIN_PRESETS,normalizeMargins,normalizeSettings,createPrintController};
+})();
+const __mdsl_printSetup = (() => {
+/* printSetup.js — 打印设置对话框：纸张、方向、页边距（预设 + 自定义四边）。
+   只负责界面与表单，真正的分页 / 出纸由 print.js 完成；
+   设置经 options.persist 交给调用方持久化（storage 层不在此处引入）。 */
+const { PAPERS, MARGIN_PRESETS, normalizeSettings } = __mdsl_print;
+const PAPER_ORDER = ['a4', 'a3', 'b5', 'letter'];
+const PRESET_ORDER = ['normal', 'narrow', 'wide', 'custom'];
+
+function option(value, label) {
+  return '<option value="' + value + '">' + label + '</option>';
+}
+
+function createPrintSetup(options) {
+  const controller = options.controller;
+  const dialog = document.getElementById('print-dialog');
+  if (!dialog) throw new Error('打印设置对话框缺失：#print-dialog');
+
+  const $ = id => dialog.querySelector('#' + id);
+  const paperEl = $('print-paper');
+  const orientationEl = $('print-orientation');
+  const presetEl = $('print-margin-preset');
+  const mm = {
+    top: $('print-mt'), right: $('print-mr'), bottom: $('print-mb'), left: $('print-ml')
+  };
+  const noteEl = $('print-layout-note');
+
+  paperEl.innerHTML = PAPER_ORDER
+    .map(key => option(key, PAPERS[key].label + ' · ' + Math.round(PAPERS[key].w) + '×' + Math.round(PAPERS[key].h) + ' mm'))
+    .join('');
+
+  presetEl.innerHTML = [
+    option('normal', '常规 · 上下 15 / 左右 20 mm'),
+    option('narrow', '窄 · 四边 10 mm'),
+    option('wide', '宽 · 四边 25 mm'),
+    option('custom', '自定义…')
+  ].join('');
+
+  function readForm() {
+    const preset = PRESET_ORDER.indexOf(presetEl.value) >= 0 ? presetEl.value : 'normal';
+    return {
+      paper: PAPERS[paperEl.value] ? paperEl.value : 'a4',
+      orientation: orientationEl.value === 'landscape' ? 'landscape' : 'portrait',
+      preset,
+      margins: {
+        top: mm.top.value === '' ? 0 : Number(mm.top.value),
+        right: mm.right.value === '' ? 0 : Number(mm.right.value),
+        bottom: mm.bottom.value === '' ? 0 : Number(mm.bottom.value),
+        left: mm.left.value === '' ? 0 : Number(mm.left.value)
+      }
+    };
+  }
+
+  /* 让四边输入框跟随预设：非自定义时只读显示预设值，避免「选了窄边距但框里还是旧数字」的错觉。 */
+  function syncMarginInputs(preset, margins) {
+    const source = preset === 'custom' ? margins : (MARGIN_PRESETS[preset] || margins);
+    ['top', 'right', 'bottom', 'left'].forEach(side => {
+      mm[side].value = String(source[side] === undefined ? 0 : source[side]);
+      mm[side].disabled = preset !== 'custom';
+    });
+  }
+
+  function updateNote() {
+    const next = normalizeSettings(readForm());
+    const paper = PAPERS[next.paper];
+    const landscape = next.orientation === 'landscape';
+    const w = (landscape ? paper.h : paper.w) - next.margins.left - next.margins.right;
+    const h = (landscape ? paper.w : paper.h) - next.margins.top - next.margins.bottom;
+    const thin = Math.min(next.margins.top, next.margins.right, next.margins.bottom, next.margins.left) < 5;
+    noteEl.textContent = '纸张 ' + (landscape ? paper.h : paper.w) + ' × ' + (landscape ? paper.w : paper.h)
+      + ' mm · 可打印区 ' + Math.max(0, Math.round(w)) + ' × ' + Math.max(0, Math.round(h)) + ' mm'
+      + (thin ? '（边距小于 5 mm，部分打印机会裁切内容）' : '');
+    noteEl.classList.toggle('warn', thin);
+  }
+
+  function syncForm(settings) {
+    const next = normalizeSettings(settings);
+    paperEl.value = next.paper;
+    orientationEl.value = next.orientation;
+    presetEl.value = next.preset;
+    syncMarginInputs(next.preset, next.margins);
+    updateNote();
+    return next;
+  }
+
+  function open() {
+    if (dialog.classList.contains('open')) return; // 已打开时不要重置用户正在改的值
+    syncForm(controller.getSettings());
+    dialog.classList.add('open');
+    setTimeout(() => paperEl.focus(), 30);
+  }
+
+  function close() {
+    dialog.classList.remove('open');
+  }
+
+  function applyAndClose() {
+    const settings = controller.setSettings(readForm());
+    if (options.persist) options.persist(settings);
+    close();
+    return settings;
+  }
+
+  dialog.addEventListener('change', event => {
+    if (event.target === presetEl) {
+      // 切到「自定义」时保留当前四边数值作为起点，改起来更顺手
+      const current = normalizeSettings(readForm());
+      syncMarginInputs(presetEl.value, current.margins);
+      if (presetEl.value === 'custom') mm.top.focus();
+    } else if (mm.top === event.target || mm.right === event.target || mm.bottom === event.target || mm.left === event.target) {
+      // 直接改数字即视为自定义，避免「预设 + 手改」的混合状态
+      presetEl.value = 'custom';
+      syncMarginInputs('custom', readForm().margins);
+    }
+    updateNote();
+  });
+
+  dialog.addEventListener('input', event => {
+    if (event.target === mm.top || event.target === mm.right || event.target === mm.bottom || event.target === mm.left) updateNote();
+  });
+
+  dialog.addEventListener('click', event => {
+    const action = event.target.closest('[data-print]');
+    if (action) {
+      const kind = action.getAttribute('data-print');
+      if (kind === 'cancel') close();
+      else if (kind === 'preview') {
+        applyAndClose();
+        controller.setMode('print');
+      } else if (kind === 'go') {
+        applyAndClose();
+        controller.print();
+      }
+      return;
+    }
+    if (event.target === dialog || event.target.closest('[data-close]')) close();
+  });
+
+  dialog.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { event.stopPropagation(); close(); }
+    if (event.key === 'Enter' && event.target.tagName !== 'SELECT' && event.target.tagName !== 'BUTTON') {
+      event.preventDefault();
+      applyAndClose();
+      controller.print();
+    }
+  });
+
+  return { open, close, isOpen: () => dialog.classList.contains('open'), refresh: () => syncForm(controller.getSettings()) };
+}
+
+return {createPrintSetup};
 })();
 const __mdsl_omml = (() => {
 /* omml.js — LaTeX -> MathML(Temml) -> OMML(Office Math) for DOCX export.
@@ -34321,6 +34695,7 @@ const { createImageViewer } = __mdsl_imageViewer;
 const { createFileService } = __mdsl_fileService;
 const { createDesktopBridge } = __mdsl_desktopBridge;
 const { createPrintController } = __mdsl_print;
+const { createPrintSetup } = __mdsl_printSetup;
 const { createDocxExporter } = __mdsl_exportDocx;
 const { createHelpController } = __mdsl_help;
 const { imageFilesFromDataTransfer, imageFilesFromClipboard, fileToMarkdownImage, buildImageSnippet, toLocalAbsolutePath } = __mdsl_imageData;
@@ -34568,8 +34943,13 @@ const printController = createPrintController({
     const first = headings[0];
     return first ? first.text : fileService.getName();
   },
+  settings: getPref('printSettings', null),
+  onSettings: settings => setPref('printSettings', settings),
   onStatus: setStatus
 });
+
+/* 打印设置（纸张 / 方向 / 页边距）：对话框只改设置，出纸仍走系统打印对话框。 */
+const printSetup = createPrintSetup({ controller: printController });
 
 const docxExporter = createDocxExporter({
   desktop,
@@ -34962,6 +35342,7 @@ shortcuts.register('Ctrl+Shift+S', saveAs);
 shortcuts.register('Ctrl+F', doFind);
 shortcuts.register('Ctrl+H', doReplace);
 shortcuts.register('Ctrl+Shift+P', () => printController.print());
+shortcuts.register('Ctrl+P', () => printSetup.open());
 shortcuts.register('Ctrl+Shift+W', exportDocx);
 shortcuts.register('F6', cycleView);
 shortcuts.register('F8', () => { setStatus('主题: ' + theme.cycle()); });
@@ -34979,6 +35360,8 @@ $('#toolbar').addEventListener('click', event => {
   else if (action === 'save-as') saveAs();
   else if (action === 'image') imageInserter.open();
   else if (action === 'pdf') printController.print();
+  else if (action === 'print') printController.print();
+  else if (action === 'print-setup') printSetup.open();
   else if (action === 'docx') exportDocx();
   else if (action === 'theme') setStatus('主题: ' + theme.cycle());
   else if (action === 'print-mode') printController.setMode(printController.getMode() === 'print' ? 'read' : 'print');

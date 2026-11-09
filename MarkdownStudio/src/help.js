@@ -117,7 +117,7 @@ const HELP = [
           { syntax: 'Ctrl+O / Ctrl+S', desc: '打开 .md 文件 / 保存并下载 .md 文件', insert: null },
           { syntax: 'Ctrl+F / Ctrl+H', desc: '编辑器内搜索 / 替换；阅读模式下 Ctrl+F 改为在预览内容里查找，Ctrl+H 会自动切回可编辑视图', insert: null },
           { syntax: '阅读模式查找', desc: 'Ctrl+F 打开查找条：输入即高亮、Enter / Shift+Enter 跳上下一个、Aa 区分大小写、Esc 关闭', insert: null },
-          { syntax: 'Ctrl+Shift+P / Ctrl+Shift+W', desc: '打印并另存为 PDF / 导出 Word DOCX', insert: null },
+          { syntax: 'Ctrl+P / Ctrl+Shift+P / Ctrl+Shift+W', desc: '打印设置（纸张/方向/边距）/ 直接用当前设置打印并另存为 PDF / 导出 Word DOCX', insert: null },
           { syntax: 'F6', desc: '循环切换视图：三栏 → 仅编辑 → 仅阅读', insert: null },
           { syntax: 'F8 / F1 / Esc', desc: '切换主题 / 打开本帮助 / 关闭弹窗', insert: null }
         ]
@@ -135,8 +135,9 @@ const HELP = [
       {
         title: '打印与导出',
         rows: [
-          { syntax: '打印预览', desc: '按 A4、上下 15mm / 左右 20mm 预分页，自动加标题+日期页眉与 Page X of Y 页码', insert: null },
-          { syntax: '导出 PDF', desc: '走浏览器原生打印，在对话框里选「另存为 PDF」；文字可选中、保真度最高', insert: null },
+          { syntax: '打印设置', desc: '在打印预览模式的工具栏里点「页面设置」（或直接按 Ctrl+P）：选纸张（A4 / A3 / B5 / Letter）、方向与页边距（常规 / 窄 / 宽 / 自定义四边 mm），点「打印」即调系统打印机', insert: null },
+          { syntax: '打印预览', desc: '按当前纸张与页边距预分页，自动加标题+日期页眉与 Page X of Y 页码；预览工具栏里有缩放、方向、页面设置与打印', insert: null },
+          { syntax: '导出 PDF', desc: '用当前设置直接打开系统打印对话框，选「另存为 PDF」即可导出；文字可选中、保真度最高', insert: null },
           { syntax: '导出 DOCX', desc: '标题映射为 Word Heading 1~3，表格、代码、内嵌图片（自动居中）、页眉页码都会保留；只支持内嵌图片，外链/相对路径会降级为占位文字并在状态栏提示', insert: null },
           { syntax: 'Word 里的公式', desc: '$...$ / $$...$$ 会转成 Word 原生公式（OMML），在 Word 中可双击编辑；极复杂公式若转换失败会保留红色源码', insert: null },
           { syntax: '阅读模式', desc: '只想读文档时点「阅读」：隐藏目录与编辑器，预览铺满窗口宽度、字号行距更舒适', insert: null }

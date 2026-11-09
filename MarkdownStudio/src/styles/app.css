@@ -13,8 +13,10 @@
   --editor-fg: #24303d;
   --gutter-bg: #f7f9fb;
   --gutter-fg: #9aa8b7;
-  --active-line: #f0f5fb;
-  --selection: #cfe4f7;
+  /* 当前行底色必须半透明：CM6 的 .cm-selectionLayer 是 z-index:-2，位于行背景之下，
+     不透明的行底色会把选区高亮整个盖住（只剩整行变蓝、选中的字不亮）。 */
+  --active-line: rgba(15, 90, 160, .06);
+  --selection: #bfddf8;
   --code-bg: #f4f6f8;
   --font-sans: "Segoe UI", "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
   --font-mono: "Cascadia Code", "Consolas", "SFMono-Regular", "Microsoft YaHei", monospace;
@@ -98,9 +100,29 @@ button { font-family: inherit; cursor: pointer; }
 .view-switch .tbtn.active { background: rgba(255,255,255,.27); border-color: rgba(255,255,255,.38); font-weight: 600; }
 .ui-scale-group { display: inline-flex; align-items: center; gap: 2px; flex: 0 0 auto; }
 .ui-scale-label { font-size: var(--fs-tiny); opacity: .75; padding: 0 2px; white-space: nowrap; min-width: calc(34px * var(--ui-scale)); text-align: center; }
-/* 打印预览的缩放/方向只在打印模式下出现，避免默认工具栏过挤 */
+/* 打印预览的缩放/方向/打印只在打印模式下出现，避免默认工具栏过挤 */
 .print-tools { display: none; align-items: center; gap: calc(6px * var(--ui-scale)); flex: 0 0 auto; }
 body.mdsl-print-mode .print-tools { display: inline-flex; }
+.print-tools .print-go { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.print-tools .print-go:hover { filter: brightness(1.1); }
+
+/* 打印预览是聚焦模式：隐藏与出纸无关的按钮，避免「页面设置」「打印」被挤出视口右侧。
+   退出预览后这些按钮立即恢复。 */
+body.mdsl-print-mode .toolbar-actions > [data-action="new"],
+body.mdsl-print-mode .toolbar-actions > [data-action="open"],
+body.mdsl-print-mode .toolbar-actions > [data-action="save"],
+body.mdsl-print-mode .toolbar-actions > [data-action="save-as"],
+body.mdsl-print-mode .toolbar-actions > [data-action="image"],
+body.mdsl-print-mode .toolbar-actions > [data-action="find"],
+body.mdsl-print-mode .toolbar-actions > [data-action="help"],
+body.mdsl-print-mode .toolbar-actions > [data-action="docx"],
+body.mdsl-print-mode .toolbar-actions > [data-action="theme"],
+body.mdsl-print-mode .toolbar-actions > [data-action="about"],
+body.mdsl-print-mode .toolbar-actions > .view-switch,
+body.mdsl-print-mode .toolbar-actions > .ui-scale-group,
+body.mdsl-print-mode .toolbar-actions > .toolbar-sep { display: none; }
+/* 其余按钮隐藏后，用首个可见按钮把整组推回右侧，与默认模式的按钮位置保持一致 */
+body.mdsl-print-mode .toolbar-actions > [data-action="print-mode"] { margin-left: auto; }
 
 /* ---------- Banner ---------- */
 .banner {
@@ -459,6 +481,44 @@ body.view-reader .preview-pane .pane-title { justify-content: center; }
 :root .mdsl-dialog .image-card .tbtn.image-primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
 :root .mdsl-dialog .image-card .tbtn.image-primary:hover { filter: brightness(1.08); }
 :root .mdsl-dialog .image-card .tbtn[disabled] { opacity: .55; cursor: default; }
+
+/* ---------- 打印设置对话框 ---------- */
+.dialog-card.print-card { width: min(580px, 94vw); }
+.print-rows { display: flex; flex-direction: column; gap: calc(12px * var(--ui-scale)); margin-top: calc(16px * var(--ui-scale)); }
+.print-row { display: flex; align-items: center; gap: calc(10px * var(--ui-scale)); flex-wrap: wrap; }
+.print-label { font-size: var(--fs-small); color: var(--muted); flex: 0 0 auto; }
+.print-input,
+.print-mm input {
+  background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 5px; padding: calc(7px * var(--ui-scale)) calc(9px * var(--ui-scale));
+  font-size: var(--fs-small); font-family: var(--font-sans);
+}
+.print-input { min-width: calc(170px * var(--ui-scale)); }
+.print-input.print-wide { flex: 1 1 auto; }
+.print-input:focus,
+.print-mm input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); outline: none; }
+.print-mm { display: flex; align-items: center; gap: calc(10px * var(--ui-scale)); flex-wrap: wrap; }
+.print-mm label { display: inline-flex; align-items: center; gap: calc(4px * var(--ui-scale)); font-size: var(--fs-tiny); color: var(--muted); }
+.print-mm input { width: calc(64px * var(--ui-scale)); text-align: center; }
+.print-mm input:disabled { opacity: 1; background: var(--gutter-bg); color: var(--muted); border-style: dashed; cursor: not-allowed; }
+.print-layout-note {
+  margin: calc(14px * var(--ui-scale)) 0 0; padding: calc(8px * var(--ui-scale)) calc(11px * var(--ui-scale));
+  background: var(--accent-soft); border: 1px solid var(--border); border-radius: 5px;
+  font-size: var(--fs-small); color: var(--fg); line-height: 1.6;
+}
+.print-layout-note.warn { background: #fff4e5; border-color: #f0c48a; color: #8a4b0f; }
+.print-tip { margin: calc(10px * var(--ui-scale)) 0 0; font-size: var(--fs-tiny); color: var(--muted); line-height: 1.7; }
+.print-tip b { color: var(--fg); }
+.print-foot { display: flex; justify-content: flex-end; gap: calc(8px * var(--ui-scale)); margin-top: calc(18px * var(--ui-scale)); }
+:root .mdsl-dialog .print-card .tbtn {
+  background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+  padding: calc(7px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  font-size: var(--fs-small); border-radius: 4px; cursor: pointer; white-space: nowrap;
+}
+:root .mdsl-dialog .print-card .tbtn:hover { background: var(--accent-soft); border-color: var(--accent); }
+:root .mdsl-dialog .print-card .tbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:root .mdsl-dialog .print-card .tbtn.print-primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+:root .mdsl-dialog .print-card .tbtn.print-primary:hover { filter: brightness(1.08); }
 
 /* ---------- Help dialog ---------- */
 .help-card { width: min(960px, 94vw); display: flex; flex-direction: column; }
