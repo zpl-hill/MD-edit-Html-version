@@ -117,7 +117,7 @@ Write-Step ("i18n + notices injected: " + $licenseFiles.Count + " licenses")
 # --- 4. Business modules: ESM -> IIFE (plain string rewriting, no bundler, no regex delegates) ---
 $moduleOrder = @(
   "platform.js", "version.js", "icons.js", "notices.js", "author.js", "slug.js", "sanitizer.js", "shortcuts.js", "help.js",
-  "storage.js", "theme.js", "parser.js", "editor.js", "viewer.js", "toc.js",
+  "storage.js", "tabs.js", "theme.js", "parser.js", "editor.js", "viewer.js", "toc.js",
   "search.js", "previewSearch.js", "imageViewer.js", "desktopBridge.js", "fileService.js", "paginator.js", "print.js", "printSetup.js", "omml.js", "imageData.js",
   "imageInsert.js", "docxConverter.js", "exportDocx.js", "main.js"
 )

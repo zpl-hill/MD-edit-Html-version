@@ -118,6 +118,8 @@ const HELP = [
           { syntax: 'Ctrl+F / Ctrl+H', desc: '编辑器内搜索 / 替换；阅读模式下 Ctrl+F 改为在预览内容里查找，Ctrl+H 会自动切回可编辑视图', insert: null },
           { syntax: '阅读模式查找', desc: 'Ctrl+F 打开查找条：输入即高亮、Enter / Shift+Enter 跳上下一个、Aa 区分大小写、Esc 关闭', insert: null },
           { syntax: 'Ctrl+P / Ctrl+Shift+P / Ctrl+Shift+W', desc: '打印设置（纸张/方向/边距）/ 直接用当前设置打印并另存为 PDF / 导出 Word DOCX', insert: null },
+          { syntax: '文件标签条', desc: '工具栏下方常驻一行标签，列出当前与已打开过的文档；点击标签即切换，当前标签高亮，× 只把标签移出标签条（正文缓存保留，可从「最近文件」找回）', insert: null },
+          { syntax: 'Alt+1 … Alt+9', desc: '直接切到第 1…9 个标签；切换前当前文档会自动暂存到本机，随时能切回来', insert: null },
           { syntax: 'Alt+R / Ctrl+Alt+R', desc: '打开「最近文件 · 快速切换」浮层；Esc 关闭。阅读模式下也有右上角悬浮入口', insert: null },
           { syntax: 'F6', desc: '循环切换视图：三栏 → 仅编辑 → 仅阅读', insert: null },
           { syntax: 'F8 / F1 / Esc', desc: '切换主题 / 打开本帮助 / 关闭弹窗', insert: null }
@@ -129,7 +131,7 @@ const HELP = [
           { syntax: '新建文档', desc: '新建会复位回固定草稿槽并清除旧草稿，旧内容不会在刷新时恢复回来；已保存过的文件仍可从「最近文件」切回。浏览器标签页标题会显示当前文件名', insert: null },
           { syntax: '30 秒自动保存', desc: '正文快照写入 IndexedDB；关闭或切走时还会写一份压缩草稿', insert: null },
           { syntax: '刷新后恢复', desc: '若发现未保存草稿，顶部会出现横幅，点「恢复」即可还原；点「丢弃」则清空', insert: null },
-          { syntax: '最近文件', desc: '左栏下方列出最近 10 个文件；打开、保存、另存为时都会缓存正文，点击即可切换过去', insert: null },
+          { syntax: '最近文件', desc: '左栏下方列出最近 10 个文件（比标签条更全的历史记录）；打开、保存、另存为时都会缓存正文，点击即可切换过去', insert: null },
           { syntax: '快速切换', desc: '单窗口切换文档：切换前自动把当前文档暂存到本机（快照 + 紧急草稿），随时可从列表切回；暂存不等于写回原文件，状态栏会明确区分', insert: null },
           { syntax: '浏览器 / 桌面版差异', desc: '浏览器在 file:// 下不能记住磁盘绝对路径，只能从本机缓存恢复；桌面版 EXE 会记录文件绝对路径，标「原文件」的条目点击后直接重新读取磁盘最新内容，保存也写回该文件', insert: null },
           { syntax: 'A− / A+', desc: '工具栏右侧可调整整个界面字体大小，设置会记住', insert: null }

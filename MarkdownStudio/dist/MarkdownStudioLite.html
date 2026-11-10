@@ -42,6 +42,7 @@
   --fs-editor: calc(13.5px * var(--ui-scale));
   --sidebar-w: 260px;
   --toolbar-h: calc(52px * var(--ui-scale));
+  --tabbar-h: calc(34px * var(--ui-scale));
   --status-h: calc(28px * var(--ui-scale));
   --banner-h: calc(37px * var(--ui-scale));
   --pane-title-h: calc(30px * var(--ui-scale));
@@ -164,15 +165,62 @@ body.mdsl-print-mode .print-tools { margin-left: auto; }
   font-size: var(--fs-small);
 }
 
+/* ---------- 文件标签条 ----------
+   常驻一行，三种视图都可见；打印预览隐藏（此时 .workspace 本来也 display:none）。
+   标签只是快捷入口：正文仍在缓存里，× 只移除标签、不删除任何数据。 */
+.tabbar {
+  height: var(--tabbar-h);
+  display: flex;
+  align-items: stretch;
+  gap: calc(4px * var(--ui-scale));
+  padding: 0 calc(12px * var(--ui-scale));
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 0 0 auto;
+}
+.mdsl-tab {
+  display: inline-flex; align-items: center; gap: calc(6px * var(--ui-scale));
+  flex: 0 0 auto;
+  max-width: calc(200px * var(--ui-scale));
+  margin: calc(4px * var(--ui-scale)) 0;
+  padding: 0 calc(8px * var(--ui-scale));
+  background: transparent; color: var(--muted);
+  border: 1px solid transparent; border-radius: 5px;
+  font-size: var(--fs-small); white-space: nowrap;
+}
+.mdsl-tab:hover { background: var(--bg); color: var(--fg); }
+.mdsl-tab.active {
+  background: var(--accent-soft); color: var(--accent);
+  border-color: var(--accent); font-weight: 600;
+}
+.mdsl-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mdsl-tab-close {
+  flex: 0 0 auto;
+  width: calc(16px * var(--ui-scale)); height: calc(16px * var(--ui-scale));
+  line-height: calc(14px * var(--ui-scale)); text-align: center;
+  border-radius: 3px; font-size: calc(14px * var(--ui-scale)); opacity: .55;
+}
+.mdsl-tab-close:hover { background: rgba(190, 40, 40, .14); color: #b42828; opacity: 1; }
+.tabbar-hint {
+  margin-left: auto; flex: 0 0 auto; align-self: center;
+  padding-left: calc(12px * var(--ui-scale));
+  font-size: var(--fs-tiny); color: var(--muted); opacity: .75; white-space: nowrap;
+}
+@media (max-width: 1100px) { .tabbar-hint { display: none; } }
+body.mdsl-print-mode .tabbar { display: none; }
+
 /* ---------- Workspace / 视图模式 ---------- */
 .workspace {
-  height: calc(100vh - var(--toolbar-h) - var(--status-h));
+  /* 标签条是 header 与 workspace 之间独立的一行，高度必须计入，否则底部被裁 */
+  height: calc(100vh - var(--toolbar-h) - var(--tabbar-h) - var(--status-h));
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(280px, 1fr) minmax(280px, 1fr);
   gap: 1px;
   background: var(--border);
 }
-body:has(.banner.visible) .workspace { height: calc(100vh - var(--toolbar-h) - var(--status-h) - var(--banner-h)); }
+body:has(.banner.visible) .workspace { height: calc(100vh - var(--toolbar-h) - var(--tabbar-h) - var(--status-h) - var(--banner-h)); }
 
 body.view-split  .workspace { grid-template-columns: var(--sidebar-w) minmax(280px, 1fr) minmax(280px, 1fr); }
 body.view-editor .workspace { grid-template-columns: var(--sidebar-w) minmax(0, 1fr); }
@@ -234,7 +282,7 @@ body.view-reader .preview-pane .pane-title { justify-content: center; }
 body.view-reader:not(.mdsl-print-mode) .recent-fab {
   display: inline-flex; align-items: center; gap: 6px;
   position: fixed; z-index: 60;
-  top: calc(var(--toolbar-h) + 10px); right: calc(18px * var(--ui-scale));
+  top: calc(var(--toolbar-h) + var(--tabbar-h) + 10px); right: calc(18px * var(--ui-scale));
   padding: calc(6px * var(--ui-scale)) calc(12px * var(--ui-scale));
   font-family: var(--font-sans); font-size: var(--fs-small);
   color: var(--fg); background: var(--panel);
@@ -870,6 +918,8 @@ body.mdsl-print-mode .print-pages {
     <button class="tbtn" data-action="about" title="关于与许可证">关于</button>
   </div>
 </header>
+
+<div class="tabbar" id="tabbar" role="tablist" aria-label="已打开的文档标签"></div>
 
 <div class="banner" id="banner"></div>
 
@@ -31404,9 +31454,10 @@ const __mdsl_version = (() => {
 /* version.js — 产品版本单一真源。
    about 页、帮助页脚、桌面壳（package.json / Cargo.toml / tauri.conf.json）
    必须与这里保持一致；发布前用 tools/check-version.ps1 或人工核对。
-   版本序列：V1.9 打印设置 → V1.10 打印预览留白 → V1.11 最近文件快速切换。 */
-const APP_VERSION = '1.11.0';
-const APP_VERSION_LABEL = 'V1.11';
+   版本序列：V1.9 打印设置 → V1.10 打印预览留白 → V1.11 最近文件快速切换
+             → V1.12 常驻文件标签条。 */
+const APP_VERSION = '1.12.0';
+const APP_VERSION_LABEL = 'V1.12';
 
 return {APP_VERSION,APP_VERSION_LABEL};
 })();
@@ -31746,6 +31797,8 @@ const HELP = [
           { syntax: 'Ctrl+F / Ctrl+H', desc: '编辑器内搜索 / 替换；阅读模式下 Ctrl+F 改为在预览内容里查找，Ctrl+H 会自动切回可编辑视图', insert: null },
           { syntax: '阅读模式查找', desc: 'Ctrl+F 打开查找条：输入即高亮、Enter / Shift+Enter 跳上下一个、Aa 区分大小写、Esc 关闭', insert: null },
           { syntax: 'Ctrl+P / Ctrl+Shift+P / Ctrl+Shift+W', desc: '打印设置（纸张/方向/边距）/ 直接用当前设置打印并另存为 PDF / 导出 Word DOCX', insert: null },
+          { syntax: '文件标签条', desc: '工具栏下方常驻一行标签，列出当前与已打开过的文档；点击标签即切换，当前标签高亮，× 只把标签移出标签条（正文缓存保留，可从「最近文件」找回）', insert: null },
+          { syntax: 'Alt+1 … Alt+9', desc: '直接切到第 1…9 个标签；切换前当前文档会自动暂存到本机，随时能切回来', insert: null },
           { syntax: 'Alt+R / Ctrl+Alt+R', desc: '打开「最近文件 · 快速切换」浮层；Esc 关闭。阅读模式下也有右上角悬浮入口', insert: null },
           { syntax: 'F6', desc: '循环切换视图：三栏 → 仅编辑 → 仅阅读', insert: null },
           { syntax: 'F8 / F1 / Esc', desc: '切换主题 / 打开本帮助 / 关闭弹窗', insert: null }
@@ -31757,7 +31810,7 @@ const HELP = [
           { syntax: '新建文档', desc: '新建会复位回固定草稿槽并清除旧草稿，旧内容不会在刷新时恢复回来；已保存过的文件仍可从「最近文件」切回。浏览器标签页标题会显示当前文件名', insert: null },
           { syntax: '30 秒自动保存', desc: '正文快照写入 IndexedDB；关闭或切走时还会写一份压缩草稿', insert: null },
           { syntax: '刷新后恢复', desc: '若发现未保存草稿，顶部会出现横幅，点「恢复」即可还原；点「丢弃」则清空', insert: null },
-          { syntax: '最近文件', desc: '左栏下方列出最近 10 个文件；打开、保存、另存为时都会缓存正文，点击即可切换过去', insert: null },
+          { syntax: '最近文件', desc: '左栏下方列出最近 10 个文件（比标签条更全的历史记录）；打开、保存、另存为时都会缓存正文，点击即可切换过去', insert: null },
           { syntax: '快速切换', desc: '单窗口切换文档：切换前自动把当前文档暂存到本机（快照 + 紧急草稿），随时可从列表切回；暂存不等于写回原文件，状态栏会明确区分', insert: null },
           { syntax: '浏览器 / 桌面版差异', desc: '浏览器在 file:// 下不能记住磁盘绝对路径，只能从本机缓存恢复；桌面版 EXE 会记录文件绝对路径，标「原文件」的条目点击后直接重新读取磁盘最新内容，保存也写回该文件', insert: null },
           { syntax: 'A− / A+', desc: '工具栏右侧可调整整个界面字体大小，设置会记住', insert: null }
@@ -32162,6 +32215,118 @@ function clearEmergencyDraft() {
 }
 
 return {currentCapability,getPref,setPref,listRecent,touchRecent,createStorageAdapter,putEmergencyDraft,putEmergencyDraftSync,readEmergencyDraft,clearEmergencyDraft};
+})();
+const __mdsl_tabs = (() => {
+/* tabs.js — 常驻标签条：把「当前文档 + 已打开过的文档」可视化，点一下就切过去。
+ *
+ * 注意这仍是「单窗口快速切换」（方案 B），不是真多标签：同一时刻只有一份 CM6
+ * 编辑器状态与一份预览。标签只记录 id / name / path，正文始终留在 IndexedDB
+ * 缓存里；关闭标签只把条目从标签条移除，绝不删缓存，仍可从「最近文件」找回。
+ *
+ * 之所以要单独持久化一份「标签列表」而不是直接渲染最近文件：最近文件是历史记录
+ * （最多 10 条、按时间滚动），标签条是用户主动保留的工作区快捷入口，两者语义不同。
+ */
+const KEY = 'mdstudio.tabs';
+const MAX_TABS = 12;
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    const data = raw ? JSON.parse(raw) : null;
+    if (!data || !Array.isArray(data.list)) return { list: [], active: null };
+    const list = data.list
+      .filter(item => item && typeof item.id === 'string' && typeof item.name === 'string')
+      .slice(0, MAX_TABS)
+      .map(item => ({ id: item.id, name: item.name, path: item.path || null }));
+    return { list, active: typeof data.active === 'string' ? data.active : null };
+  } catch (e) {
+    return { list: [], active: null };
+  }
+}
+
+function createTabs(options) {
+  const root = document.getElementById('tabbar');
+  const state = load();
+  const onActivate = options.onActivate || function () {};
+  const onClose = options.onClose || function () {};
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* 存储降级时不阻塞 UI */ }
+  }
+
+  function list() { return state.list.map(item => Object.assign({}, item)); }
+  function active() { return state.active; }
+
+  function add(item) {
+    if (!item || !item.id) return;
+    const found = state.list.find(entry => entry.id === item.id);
+    if (found) {
+      found.name = item.name || found.name;
+      if (item.path !== undefined) found.path = item.path || null;
+    } else {
+      state.list.push({ id: item.id, name: item.name || 'untitled.md', path: item.path || null });
+      while (state.list.length > MAX_TABS) state.list.shift();
+    }
+    save();
+  }
+
+  function setActive(id) {
+    if (!id) return;
+    state.active = id;
+    // active 必须始终指向一个可见标签，否则标签条会出现「没有任何高亮」的怪状态
+    if (!state.list.some(entry => entry.id === id)) {
+      state.list.unshift({ id, name: 'untitled.md', path: null });
+    }
+    save();
+  }
+
+  function remove(id) {
+    state.list = state.list.filter(entry => entry.id !== id);
+    save();
+  }
+
+  function render() {
+    if (!root) return;
+    root.replaceChildren();
+    state.list.forEach(item => {
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'mdsl-tab' + (item.id === state.active ? ' active' : '');
+      tab.dataset.id = item.id;
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('aria-selected', item.id === state.active ? 'true' : 'false');
+      tab.title = item.name + (item.path ? '\n原文件：' + item.path : '\n本机缓存');
+
+      const label = document.createElement('span');
+      label.className = 'mdsl-tab-name';
+      label.textContent = item.name;
+      const close = document.createElement('span');
+      close.className = 'mdsl-tab-close';
+      close.dataset.close = item.id;
+      close.setAttribute('aria-label', '从标签条移除 ' + item.name);
+      close.textContent = '×';
+      tab.append(label, close);
+      root.appendChild(tab);
+    });
+    const hint = document.createElement('span');
+    hint.className = 'tabbar-hint';
+    hint.textContent = '点击切换 · 切换前自动暂存 · × 只移出标签条（缓存保留）';
+    root.appendChild(hint);
+  }
+
+  if (root) {
+    root.addEventListener('click', event => {
+      const close = event.target.closest('[data-close]');
+      if (close) { event.stopPropagation(); onClose(close.getAttribute('data-close')); return; }
+      const tab = event.target.closest('.mdsl-tab[data-id]');
+      if (tab) onActivate(tab.getAttribute('data-id'));
+    });
+  }
+
+  return { list, active, add, setActive, remove, render };
+}
+
+return {createTabs};
 })();
 const __mdsl_theme = (() => {
 /* theme.js — Light / Dark / 跟随系统。 */
@@ -34810,6 +34975,7 @@ const { APP_VERSION, APP_VERSION_LABEL } = __mdsl_version;
 const { createImageViewer } = __mdsl_imageViewer;
 const { createFileService } = __mdsl_fileService;
 const { createDesktopBridge } = __mdsl_desktopBridge;
+const { createTabs } = __mdsl_tabs;
 const { createPrintController } = __mdsl_print;
 const { createPrintSetup } = __mdsl_printSetup;
 const { createDocxExporter } = __mdsl_exportDocx;
@@ -34966,6 +35132,53 @@ if (capability.backend !== 'indexeddb') {
 /* 桌面版（Tauri）才有原生桥接；浏览器里 enabled=false，行为与之前完全一致。 */
 const desktop = createDesktopBridge();
 
+/* 常驻标签条：只负责「显示哪些文档可以一键切过去」，文档切换仍统一走
+   activateRecent()（先暂存当前 → 再恢复目标），不引入第二份编辑器状态。 */
+const tabs = createTabs({
+  onActivate: id => activateTab(id),
+  onClose: id => closeTab(id)
+});
+
+function syncTabs() {
+  tabs.add({
+    id: currentDocId,
+    name: fileService.getName(),
+    path: desktop.enabled ? desktop.getPath() : null
+  });
+  tabs.setActive(currentDocId);
+  tabs.render();
+}
+
+function activateTab(id) {
+  if (!id) return;
+  if (id === currentDocId) { closeQuickSwitch(); return; }
+  const fromTab = tabs.list().find(entry => entry.id === id);
+  const fromRecent = listRecent().find(entry => entry.id === id);
+  if (!fromTab && !fromRecent) {
+    setStatus('该标签的文档已不在本机缓存中，请用「最近文件」或「打开」重新载入');
+    return;
+  }
+  const item = Object.assign({}, fromRecent || {}, fromTab || {}, { id });
+  if (!item.path && fromRecent && fromRecent.path) item.path = fromRecent.path;
+  activateRecent(item).catch(e => {
+    console.error('[tabs]', e);
+    setStatus('切换失败：' + (e && e.message ? e.message : e));
+  });
+}
+
+/* 关闭标签只移出标签条，不删缓存。关掉的是当前标签时，先切到相邻标签，
+   activateRecent() 会顺带把正在关闭的文档暂存到缓存 + 最近文件，随时能找回。 */
+function closeTab(id) {
+  const rest = tabs.list().filter(entry => entry.id !== id);
+  if (id === tabs.active() && !rest.length) {
+    setStatus('至少保留一个标签；想清空当前内容请用「新建」');
+    return;
+  }
+  tabs.remove(id);
+  if (id === tabs.active()) activateTab(rest[rest.length - 1].id);
+  else tabs.render();
+}
+
 const fileService = createFileService({
   initialName: 'untitled.md',
   native: desktop.enabled ? desktop : null,
@@ -34976,6 +35189,9 @@ const fileService = createFileService({
       path: result.path || null
     });
     renderRecent();
+    syncTabs();
+    // 打开即缓存：拖入 .md 与「打开」都走 onOpen，保证标签随时能切回来
+    cacheDocument(result.id, result.name, result.text);
     syncTitle(result.name);
     setStatus('已打开 ' + result.name);
   },
@@ -35145,6 +35361,7 @@ async function saveFile() {
       path: desktop.enabled ? desktop.getPath() : null
     });
     renderRecent();
+    syncTabs();
   } catch (e) { console.warn('[save]', e); }
   dirty = false;
   setSaveStatus('已保存 ' + timeNow());
@@ -35175,6 +35392,7 @@ async function saveAs() {
       path: desktop.enabled ? desktop.getPath() : null
     });
     renderRecent();
+    syncTabs();
   } catch (e) { console.warn('[save-as]', e); }
   dirty = false;
   setStatus('已另存为 ' + name);
@@ -35225,6 +35443,7 @@ async function openFromHost() {
     path: doc.path || null
   });
   renderRecent();
+  syncTabs();
   syncTitle(doc.name);
   dirty = false;
   setSaveStatus('已打开 ' + timeNow());
@@ -35267,6 +35486,7 @@ async function createNewDocument() {
   if (viewMode === 'reader') applyView('split', true);
 
   syncTitle();
+  syncTabs();
   editorRef.focus();
   dirty = false;                       // 放在最后，压住 reset 可能触发的同步回调
   setSaveStatus('新文档');
@@ -35396,6 +35616,7 @@ async function activateRecent(item) {
   touchRecent(recentMeta(item.id, name, text, fromDisk ? item.path : undefined));
   renderRecent();
   renderQuickList();
+  syncTabs();
   dirty = false;           // 放在最后，压住 reset 可能触发的同步回调
   setSaveStatus((fromDisk ? '已打开原文件 ' : '已从缓存恢复 ') + timeNow());
   setStatus((fromDisk ? '已重新打开原文件 ' : '已从本机缓存恢复 ') + name + '；原文档已暂存，可随时切回');
@@ -35527,6 +35748,7 @@ async function restoreDraft() {
         viewer.render(snapshot.content);
         if (snapshot.name) { fileService.setName(snapshot.name); syncTitle(snapshot.name); }
         updateCounts();
+        syncTabs();
         dirty = true;
         hideBanner();
         setStatus('草稿已恢复');
@@ -35654,6 +35876,13 @@ shortcuts.register('Ctrl+/', () => help.toggle());
 const toggleQuickSwitch = () => { if (isQuickSwitchOpen()) closeQuickSwitch(); else openQuickSwitch(); };
 shortcuts.register('Alt+R', toggleQuickSwitch);
 shortcuts.register('Ctrl+Alt+R', toggleQuickSwitch);
+/* 标签条快捷切换：Alt+1..9 对应从左到右第 1..9 个标签 */
+for (let n = 1; n <= 9; n++) {
+  shortcuts.register('Alt+' + n, () => {
+    const entry = tabs.list()[n - 1];
+    if (entry) activateTab(entry.id);
+  });
+}
 shortcuts.attach();
 
 $('#toolbar').addEventListener('click', event => {
@@ -35864,6 +36093,14 @@ viewer.render(editorRef.getText());
 syncTitle();
 updateCounts();
 renderRecent();
+syncTabs();
+/* 标签条里的第一枚标签必须能切回来：初始文档（示例 / 空白草稿）也写一份正文缓存。
+   仅当该槽位为空时写，绝不覆盖上次切换时暂存进 'draft' 槽的真实文档。 */
+try {
+  if (!(await storage.getDoc(currentDocId))) {
+    await cacheDocument(currentDocId, fileService.getName(), editorRef.getText());
+  }
+} catch (e) { console.warn('[tabs] 初始缓存失败:', e); }
 applyView(getPref('viewMode', 'split'), false);
 setSaveStatus('就绪');
 setStatus(desktop.enabled ? '就绪 · 桌面版，双击 .md 即可直接打开' : '就绪 · 双击即可离线使用');

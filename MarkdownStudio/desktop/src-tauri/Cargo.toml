@@ -1,6 +1,6 @@
 [package]
 name = "markdown-studio-lite"
-version = "1.11.0"
+version = "1.12.0"
 description = "Markdown Studio Lite — offline Markdown editor"
 authors = ["Zhao Pengliang (Fred) <zplwsygr@163.com>"]
 edition = "2021"

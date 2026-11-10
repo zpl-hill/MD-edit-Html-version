@@ -16,6 +16,7 @@ import { APP_VERSION, APP_VERSION_LABEL } from "./version.js";
 import { createImageViewer } from "./imageViewer.js";
 import { createFileService } from "./fileService.js";
 import { createDesktopBridge } from "./desktopBridge.js";
+import { createTabs } from "./tabs.js";
 import { createPrintController } from "./print.js";
 import { createPrintSetup } from "./printSetup.js";
 import { createDocxExporter } from "./exportDocx.js";
@@ -173,6 +174,53 @@ if (capability.backend !== 'indexeddb') {
 /* 桌面版（Tauri）才有原生桥接；浏览器里 enabled=false，行为与之前完全一致。 */
 const desktop = createDesktopBridge();
 
+/* 常驻标签条：只负责「显示哪些文档可以一键切过去」，文档切换仍统一走
+   activateRecent()（先暂存当前 → 再恢复目标），不引入第二份编辑器状态。 */
+const tabs = createTabs({
+  onActivate: id => activateTab(id),
+  onClose: id => closeTab(id)
+});
+
+function syncTabs() {
+  tabs.add({
+    id: currentDocId,
+    name: fileService.getName(),
+    path: desktop.enabled ? desktop.getPath() : null
+  });
+  tabs.setActive(currentDocId);
+  tabs.render();
+}
+
+function activateTab(id) {
+  if (!id) return;
+  if (id === currentDocId) { closeQuickSwitch(); return; }
+  const fromTab = tabs.list().find(entry => entry.id === id);
+  const fromRecent = listRecent().find(entry => entry.id === id);
+  if (!fromTab && !fromRecent) {
+    setStatus('该标签的文档已不在本机缓存中，请用「最近文件」或「打开」重新载入');
+    return;
+  }
+  const item = Object.assign({}, fromRecent || {}, fromTab || {}, { id });
+  if (!item.path && fromRecent && fromRecent.path) item.path = fromRecent.path;
+  activateRecent(item).catch(e => {
+    console.error('[tabs]', e);
+    setStatus('切换失败：' + (e && e.message ? e.message : e));
+  });
+}
+
+/* 关闭标签只移出标签条，不删缓存。关掉的是当前标签时，先切到相邻标签，
+   activateRecent() 会顺带把正在关闭的文档暂存到缓存 + 最近文件，随时能找回。 */
+function closeTab(id) {
+  const rest = tabs.list().filter(entry => entry.id !== id);
+  if (id === tabs.active() && !rest.length) {
+    setStatus('至少保留一个标签；想清空当前内容请用「新建」');
+    return;
+  }
+  tabs.remove(id);
+  if (id === tabs.active()) activateTab(rest[rest.length - 1].id);
+  else tabs.render();
+}
+
 const fileService = createFileService({
   initialName: 'untitled.md',
   native: desktop.enabled ? desktop : null,
@@ -183,6 +231,9 @@ const fileService = createFileService({
       path: result.path || null
     });
     renderRecent();
+    syncTabs();
+    // 打开即缓存：拖入 .md 与「打开」都走 onOpen，保证标签随时能切回来
+    cacheDocument(result.id, result.name, result.text);
     syncTitle(result.name);
     setStatus('已打开 ' + result.name);
   },
@@ -352,6 +403,7 @@ async function saveFile() {
       path: desktop.enabled ? desktop.getPath() : null
     });
     renderRecent();
+    syncTabs();
   } catch (e) { console.warn('[save]', e); }
   dirty = false;
   setSaveStatus('已保存 ' + timeNow());
@@ -382,6 +434,7 @@ async function saveAs() {
       path: desktop.enabled ? desktop.getPath() : null
     });
     renderRecent();
+    syncTabs();
   } catch (e) { console.warn('[save-as]', e); }
   dirty = false;
   setStatus('已另存为 ' + name);
@@ -432,6 +485,7 @@ async function openFromHost() {
     path: doc.path || null
   });
   renderRecent();
+  syncTabs();
   syncTitle(doc.name);
   dirty = false;
   setSaveStatus('已打开 ' + timeNow());
@@ -474,6 +528,7 @@ async function createNewDocument() {
   if (viewMode === 'reader') applyView('split', true);
 
   syncTitle();
+  syncTabs();
   editorRef.focus();
   dirty = false;                       // 放在最后，压住 reset 可能触发的同步回调
   setSaveStatus('新文档');
@@ -603,6 +658,7 @@ async function activateRecent(item) {
   touchRecent(recentMeta(item.id, name, text, fromDisk ? item.path : undefined));
   renderRecent();
   renderQuickList();
+  syncTabs();
   dirty = false;           // 放在最后，压住 reset 可能触发的同步回调
   setSaveStatus((fromDisk ? '已打开原文件 ' : '已从缓存恢复 ') + timeNow());
   setStatus((fromDisk ? '已重新打开原文件 ' : '已从本机缓存恢复 ') + name + '；原文档已暂存，可随时切回');
@@ -734,6 +790,7 @@ async function restoreDraft() {
         viewer.render(snapshot.content);
         if (snapshot.name) { fileService.setName(snapshot.name); syncTitle(snapshot.name); }
         updateCounts();
+        syncTabs();
         dirty = true;
         hideBanner();
         setStatus('草稿已恢复');
@@ -861,6 +918,13 @@ shortcuts.register('Ctrl+/', () => help.toggle());
 const toggleQuickSwitch = () => { if (isQuickSwitchOpen()) closeQuickSwitch(); else openQuickSwitch(); };
 shortcuts.register('Alt+R', toggleQuickSwitch);
 shortcuts.register('Ctrl+Alt+R', toggleQuickSwitch);
+/* 标签条快捷切换：Alt+1..9 对应从左到右第 1..9 个标签 */
+for (let n = 1; n <= 9; n++) {
+  shortcuts.register('Alt+' + n, () => {
+    const entry = tabs.list()[n - 1];
+    if (entry) activateTab(entry.id);
+  });
+}
 shortcuts.attach();
 
 $('#toolbar').addEventListener('click', event => {
@@ -1071,6 +1135,14 @@ viewer.render(editorRef.getText());
 syncTitle();
 updateCounts();
 renderRecent();
+syncTabs();
+/* 标签条里的第一枚标签必须能切回来：初始文档（示例 / 空白草稿）也写一份正文缓存。
+   仅当该槽位为空时写，绝不覆盖上次切换时暂存进 'draft' 槽的真实文档。 */
+try {
+  if (!(await storage.getDoc(currentDocId))) {
+    await cacheDocument(currentDocId, fileService.getName(), editorRef.getText());
+  }
+} catch (e) { console.warn('[tabs] 初始缓存失败:', e); }
 applyView(getPref('viewMode', 'split'), false);
 setSaveStatus('就绪');
 setStatus(desktop.enabled ? '就绪 · 桌面版，双击 .md 即可直接打开' : '就绪 · 双击即可离线使用');

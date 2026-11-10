@@ -32,6 +32,7 @@
   --fs-editor: calc(13.5px * var(--ui-scale));
   --sidebar-w: 260px;
   --toolbar-h: calc(52px * var(--ui-scale));
+  --tabbar-h: calc(34px * var(--ui-scale));
   --status-h: calc(28px * var(--ui-scale));
   --banner-h: calc(37px * var(--ui-scale));
   --pane-title-h: calc(30px * var(--ui-scale));
@@ -154,15 +155,62 @@ body.mdsl-print-mode .print-tools { margin-left: auto; }
   font-size: var(--fs-small);
 }
 
+/* ---------- 文件标签条 ----------
+   常驻一行，三种视图都可见；打印预览隐藏（此时 .workspace 本来也 display:none）。
+   标签只是快捷入口：正文仍在缓存里，× 只移除标签、不删除任何数据。 */
+.tabbar {
+  height: var(--tabbar-h);
+  display: flex;
+  align-items: stretch;
+  gap: calc(4px * var(--ui-scale));
+  padding: 0 calc(12px * var(--ui-scale));
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 0 0 auto;
+}
+.mdsl-tab {
+  display: inline-flex; align-items: center; gap: calc(6px * var(--ui-scale));
+  flex: 0 0 auto;
+  max-width: calc(200px * var(--ui-scale));
+  margin: calc(4px * var(--ui-scale)) 0;
+  padding: 0 calc(8px * var(--ui-scale));
+  background: transparent; color: var(--muted);
+  border: 1px solid transparent; border-radius: 5px;
+  font-size: var(--fs-small); white-space: nowrap;
+}
+.mdsl-tab:hover { background: var(--bg); color: var(--fg); }
+.mdsl-tab.active {
+  background: var(--accent-soft); color: var(--accent);
+  border-color: var(--accent); font-weight: 600;
+}
+.mdsl-tab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mdsl-tab-close {
+  flex: 0 0 auto;
+  width: calc(16px * var(--ui-scale)); height: calc(16px * var(--ui-scale));
+  line-height: calc(14px * var(--ui-scale)); text-align: center;
+  border-radius: 3px; font-size: calc(14px * var(--ui-scale)); opacity: .55;
+}
+.mdsl-tab-close:hover { background: rgba(190, 40, 40, .14); color: #b42828; opacity: 1; }
+.tabbar-hint {
+  margin-left: auto; flex: 0 0 auto; align-self: center;
+  padding-left: calc(12px * var(--ui-scale));
+  font-size: var(--fs-tiny); color: var(--muted); opacity: .75; white-space: nowrap;
+}
+@media (max-width: 1100px) { .tabbar-hint { display: none; } }
+body.mdsl-print-mode .tabbar { display: none; }
+
 /* ---------- Workspace / 视图模式 ---------- */
 .workspace {
-  height: calc(100vh - var(--toolbar-h) - var(--status-h));
+  /* 标签条是 header 与 workspace 之间独立的一行，高度必须计入，否则底部被裁 */
+  height: calc(100vh - var(--toolbar-h) - var(--tabbar-h) - var(--status-h));
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(280px, 1fr) minmax(280px, 1fr);
   gap: 1px;
   background: var(--border);
 }
-body:has(.banner.visible) .workspace { height: calc(100vh - var(--toolbar-h) - var(--status-h) - var(--banner-h)); }
+body:has(.banner.visible) .workspace { height: calc(100vh - var(--toolbar-h) - var(--tabbar-h) - var(--status-h) - var(--banner-h)); }
 
 body.view-split  .workspace { grid-template-columns: var(--sidebar-w) minmax(280px, 1fr) minmax(280px, 1fr); }
 body.view-editor .workspace { grid-template-columns: var(--sidebar-w) minmax(0, 1fr); }
@@ -224,7 +272,7 @@ body.view-reader .preview-pane .pane-title { justify-content: center; }
 body.view-reader:not(.mdsl-print-mode) .recent-fab {
   display: inline-flex; align-items: center; gap: 6px;
   position: fixed; z-index: 60;
-  top: calc(var(--toolbar-h) + 10px); right: calc(18px * var(--ui-scale));
+  top: calc(var(--toolbar-h) + var(--tabbar-h) + 10px); right: calc(18px * var(--ui-scale));
   padding: calc(6px * var(--ui-scale)) calc(12px * var(--ui-scale));
   font-family: var(--font-sans); font-size: var(--fs-small);
   color: var(--fg); background: var(--panel);
