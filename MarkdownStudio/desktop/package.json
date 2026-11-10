@@ -1,7 +1,7 @@
 {
   "name": "markdown-studio-lite-desktop",
   "private": true,
-  "version": "1.6.0",
+  "version": "1.11.0",
   "description": "Markdown Studio Lite desktop shell (Tauri 2)",
   "scripts": {
     "tauri": "tauri",

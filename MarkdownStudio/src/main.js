@@ -12,6 +12,7 @@ import { createTocTree } from "./toc.js";
 import { createSearchController } from "./search.js";
 import { createPreviewSearch } from "./previewSearch.js";
 import { AUTHOR_NAME, AUTHOR_EMAIL } from "./author.js";
+import { APP_VERSION, APP_VERSION_LABEL } from "./version.js";
 import { createImageViewer } from "./imageViewer.js";
 import { createFileService } from "./fileService.js";
 import { createDesktopBridge } from "./desktopBridge.js";
@@ -177,7 +178,10 @@ const fileService = createFileService({
   native: desktop.enabled ? desktop : null,
   onOpen: result => {
     currentDocId = result.id;
-    touchRecent({ id: result.id, name: result.name, size: result.size, source: 'file' });
+    touchRecent({
+      id: result.id, name: result.name, size: result.size, source: 'file',
+      path: result.path || null
+    });
     renderRecent();
     syncTitle(result.name);
     setStatus('已打开 ' + result.name);
@@ -343,7 +347,10 @@ async function saveFile() {
     await storage.putDoc({ id: currentDocId, name, content: text, updatedAt: Date.now(), version: 1 });
     await storage.clearSnapshots(currentDocId);
     clearEmergencyDraft();
-    touchRecent({ id: currentDocId, name, size: text.length, source: 'file' });
+    touchRecent({
+      id: currentDocId, name, size: text.length, source: 'file',
+      path: desktop.enabled ? desktop.getPath() : null
+    });
     renderRecent();
   } catch (e) { console.warn('[save]', e); }
   dirty = false;
@@ -363,6 +370,20 @@ async function saveAs() {
   }
   if (!name) return;
   syncTitle(name);
+  /* 另存为会改变文件名与（桌面版）磁盘路径：同步缓存与最近文件，
+     否则快速切换列表里仍是旧名字，桌面版还会写回旧路径。 */
+  try {
+    const text = editorRef.getText();
+    await cacheDocument(currentDocId, name, text);
+    await storage.clearSnapshots(currentDocId);
+    clearEmergencyDraft();
+    touchRecent({
+      id: currentDocId, name, size: text.length, source: 'file',
+      path: desktop.enabled ? desktop.getPath() : null
+    });
+    renderRecent();
+  } catch (e) { console.warn('[save-as]', e); }
+  dirty = false;
   setStatus('已另存为 ' + name);
   setSaveStatus('已保存 ' + timeNow());
 }
@@ -376,10 +397,13 @@ async function openFile() {
     return;
   }
   if (!result) return;
-  editorRef.setText(result.text);
+  /* 打开即写正文缓存：最近文件条目此前只记元数据，未保存过的文件点开时
+     getDoc() 会返回 null，表现为「点了没反应」。 */
+  await cacheDocument(currentDocId, result.name, result.text);
+  editorRef.reset(result.text);
   viewer.render(result.text);
   updateCounts();
-  dirty = false;
+  dirty = false;                       // 放在最后，压住 reset 触发的同步回调
   setSaveStatus('已打开 ' + timeNow());
 }
 
@@ -395,12 +419,18 @@ async function openFromHost() {
     return null;
   }
   if (!doc) return null;
-  editorRef.setText(doc.text);
+  // 先定 id 再缓存：否则正文会写进旧的 'draft' 槽，最近文件条目却指向新 id
+  currentDocId = 'file:' + doc.name + ':' + doc.size;
+  await cacheDocument(currentDocId, doc.name, doc.text);
+  editorRef.reset(doc.text);
   viewer.render(doc.text);
   updateCounts();
   fileService.setName(doc.name);
-  currentDocId = 'file:' + doc.name + ':' + doc.size;
-  touchRecent({ id: currentDocId, name: doc.name, size: doc.size, source: 'file' });
+  fileService.setId(currentDocId);
+  touchRecent({
+    id: currentDocId, name: doc.name, size: doc.size, source: 'file',
+    path: doc.path || null
+  });
   renderRecent();
   syncTitle(doc.name);
   dirty = false;
@@ -482,6 +512,127 @@ async function exportDocx() {
   }
 }
 
+/* ---------- 最近文件 / 快速切换 ----------
+   统一由 activateRecent() 切换文档：切换前把当前文档暂存到本机（单窗口快速切换，
+   不做多标签）；桌面版按 path 重新读取磁盘原文件，浏览器版只能从本机缓存恢复。 */
+const RECENT_HINT_DESKTOP = '点击带「原文件」标记的条目会重新读取磁盘上的最新内容；其余条目从本机缓存恢复。切换前会自动暂存当前文档，可随时切回。';
+const RECENT_HINT_BROWSER = '浏览器在 file:// 下无法记住磁盘路径，仅能从本机缓存恢复；需要直接打开历史原文件请用桌面版 EXE。切换前会自动暂存当前文档，可随时切回。';
+
+async function cacheDocument(id, name, text) {
+  try {
+    await storage.putDoc({ id, name, content: text, updatedAt: Date.now(), version: 1 });
+    return true;
+  } catch (e) {
+    console.warn('[recent] 正文缓存失败:', e);
+    return false;
+  }
+}
+
+function recentMeta(id, name, text, path) {
+  return {
+    id, name, size: text.length, source: 'file',
+    path: path === undefined ? (desktop.enabled ? desktop.getPath() : null) : path
+  };
+}
+
+/* 切换前暂存当前文档：正文 + 快照 + 紧急草稿，并登记进最近列表，保证能切回来。
+   注意这只是「暂存到本机」，并未写回磁盘原文件，状态栏文案必须区分。 */
+async function captureCurrentForSwitch() {
+  const text = editorRef.getText();
+  const name = fileService.getName();
+  const id = currentDocId;
+  if (!text && id === 'draft') return;   // 空白草稿不污染列表
+  await cacheDocument(id, name, text);
+  try {
+    await storage.putSnapshot({ docId: id, at: Date.now(), content: text, name, trigger: 'switch' });
+    await putEmergencyDraft(text, name);
+  } catch (e) { console.warn('[recent] 暂存快照失败:', e); }
+  touchRecent(recentMeta(id, name, text));
+  renderRecent();
+  dirty = false;
+  setSaveStatus('已暂存（未写回文件）' + timeNow());
+}
+
+async function activateRecent(item) {
+  if (!item || !item.id) return;
+  if (item.id === currentDocId) {
+    if (dirty) await captureCurrentForSwitch();
+    closeQuickSwitch();
+    setStatus(dirty ? '当前文档已暂存到本机（未写回原文件）' : '已在当前文档：' + item.name);
+    return;
+  }
+  try { await captureCurrentForSwitch(); }
+  catch (e) { console.warn('[recent] 暂存当前文档失败:', e); }
+
+  let text = null;
+  let name = item.name;
+  let fromDisk = false;
+
+  if (desktop.enabled && item.path) {
+    try {
+      const doc = await desktop.loadPath(item.path);  // 同时把原生 currentPath 指向该文件
+      text = doc.text; name = doc.name;
+      fromDisk = true;
+    } catch (e) {
+      setStatus('原文件读取失败，改从本机缓存恢复：' + (e && e.message ? e.message : e));
+    }
+  }
+  if (text == null) {
+    const cached = await storage.getDoc(item.id);
+    if (!cached) {
+      setStatus(desktop.enabled
+        ? '未找到该文件的正文缓存，请用「打开」重新选择文件'
+        : '该条目无正文缓存；浏览器版请用「打开」重新选择文件，或改用桌面版直接打开历史原文件');
+      return;
+    }
+    text = cached.content;
+    name = cached.name || name;
+    // 该条目没有磁盘路径：清掉原生 currentPath，避免「保存」写回上一个文件
+    if (desktop.enabled && desktop.resetPath) desktop.resetPath();
+  }
+
+  editorRef.reset(text);   // reset 清 undo 历史，Ctrl+Z 不会撤回上一份文档
+  viewer.render(text);
+  updateCounts(text);
+  currentDocId = item.id;
+  fileService.setName(name);
+  fileService.setId(item.id);
+  syncTitle(name);
+  clearEmergencyDraft();
+  await cacheDocument(item.id, name, text);
+  touchRecent(recentMeta(item.id, name, text, fromDisk ? item.path : undefined));
+  renderRecent();
+  renderQuickList();
+  dirty = false;           // 放在最后，压住 reset 可能触发的同步回调
+  setSaveStatus((fromDisk ? '已打开原文件 ' : '已从缓存恢复 ') + timeNow());
+  setStatus((fromDisk ? '已重新打开原文件 ' : '已从本机缓存恢复 ') + name + '；原文档已暂存，可随时切回');
+  closeQuickSwitch();
+}
+
+function buildRecentItem(item, withBadge) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'recent-item';
+  button.dataset.id = item.id;
+  button.title = item.name + (item.path ? '\n原文件：' + item.path : '');
+  const name = document.createElement('span');
+  name.className = 'recent-name';
+  name.textContent = item.name;
+  const meta = document.createElement('span');
+  meta.className = 'recent-meta';
+  const when = item.openedAt ? new Date(item.openedAt).toLocaleString() : '';
+  const sz = item.size != null ? formatSize(item.size) : '';
+  meta.textContent = [when, sz].filter(Boolean).join(' · ') || '本机缓存';
+  if (withBadge) {
+    const badge = document.createElement('em');
+    badge.className = 'recent-badge';
+    badge.textContent = item.path && desktop.enabled ? ' · 原文件' : ' · 本机缓存';
+    meta.appendChild(badge);
+  }
+  button.append(name, meta);
+  return button;
+}
+
 function renderRecent() {
   const root = $('#recent-list');
   if (!root) return;
@@ -494,39 +645,74 @@ function renderRecent() {
     root.appendChild(empty);
     return;
   }
+  list.forEach(item => root.appendChild(buildRecentItem(item, false)));
+}
+
+function renderQuickList() {
+  const root = $('#recent-switch-list');
+  if (!root) return;
+  const list = listRecent();
+  root.replaceChildren();
+  if (!list.length) {
+    const empty = document.createElement('p');
+    empty.className = 'recent-empty';
+    empty.textContent = '暂无最近文件；用「打开」读入一份 .md 后即可快速切换。';
+    root.appendChild(empty);
+    return;
+  }
   list.forEach(item => {
-    const button = document.createElement('button');
-    button.className = 'recent-item';
-    button.dataset.id = item.id;
-    button.title = item.name;
-    const name = document.createElement('span');
-    name.className = 'recent-name';
-    name.textContent = item.name;
-    const meta = document.createElement('span');
-    meta.className = 'recent-meta';
-    const when = item.openedAt ? new Date(item.openedAt).toLocaleString() : '';
-    const size = item.size != null ? formatSize(item.size) : '';
-    meta.textContent = [when, size].filter(Boolean).join(' · ') || '本机缓存';
-    button.append(name, meta);
-    root.appendChild(button);
+    const node = buildRecentItem(item, true);
+    if (item.id === currentDocId) node.classList.add('is-current');
+    root.appendChild(node);
   });
 }
 
-$('#recent-list').addEventListener('click', async event => {
-  const button = event.target.closest('[data-id]');
-  if (!button) return;
-  const id = button.getAttribute('data-id');
-  const doc = await storage.getDoc(id);
-  if (!doc) { setStatus('该文件正文未缓存，请用「打开」重新选择文件'); return; }
-  editorRef.setText(doc.content);
-  viewer.render(doc.content);
-  fileService.setName(doc.name);
-  fileService.setId(id);
-  syncTitle(doc.name);
-  currentDocId = id;
-  updateCounts();
-  dirty = false;
-  setStatus('已从本机缓存恢复 ' + doc.name);
+function isQuickSwitchOpen() {
+  const dialog = $('#recent-switcher');
+  return !!dialog && dialog.classList.contains('open');
+}
+
+function openQuickSwitch() {
+  const dialog = $('#recent-switcher');
+  if (!dialog) return;
+  renderQuickList();
+  const hint = $('#recent-hint');
+  if (hint) hint.textContent = desktop.enabled ? RECENT_HINT_DESKTOP : RECENT_HINT_BROWSER;
+  const cur = $('#recent-current');
+  if (cur) cur.textContent = '当前：' + fileService.getName();
+  dialog.classList.add('open');
+  const first = dialog.querySelector('.recent-item');
+  if (first) first.focus();
+}
+
+function closeQuickSwitch() {
+  const dialog = $('#recent-switcher');
+  if (dialog) dialog.classList.remove('open');
+}
+
+function bindRecentList(selector) {
+  const root = $(selector);
+  if (!root) return;
+  root.addEventListener('click', event => {
+    const button = event.target.closest('.recent-item[data-id]');
+    if (!button) return;
+    const id = button.getAttribute('data-id');
+    const item = listRecent().find(entry => entry.id === id);
+    if (!item) return;
+    activateRecent(item).catch(e => {
+      console.error('[recent]', e);
+      setStatus('切换失败：' + (e && e.message ? e.message : e));
+    });
+  });
+}
+bindRecentList('#recent-list');
+bindRecentList('#recent-switch-list');
+
+$('#recent-switcher').addEventListener('click', event => {
+  if (event.target === $('#recent-switcher') || event.target.closest('[data-close]')) closeQuickSwitch();
+});
+$('#recent-fab').addEventListener('click', () => {
+  if (isQuickSwitchOpen()) closeQuickSwitch(); else openQuickSwitch();
 });
 
 async function restoreDraft() {
@@ -636,7 +822,8 @@ function showAbout() {
         '<button class="tbtn about-copy" type="button" data-copy-email="1">复制邮箱</button>' +
       '</div>' +
     '</div>' +
-    '<p><strong>Markdown Studio Lite ' + (desktop.enabled ? '桌面版' : 'V1.0') + '</strong></p>' +
+    '<p><strong>Markdown Studio Lite ' + APP_VERSION_LABEL + ' · ' + APP_VERSION + '（' +
+      (desktop.enabled ? '桌面版' : '单文件版') + '）</strong></p>' +
     (desktop.enabled
       ? '<p>Tauri 2 + 系统 WebView2 · 完全离线 · 免安装单文件</p>'
       : '<p>单 HTML 文件 · 纯前端 · 完全离线 · 无需安装</p>') +
@@ -670,6 +857,10 @@ shortcuts.register('F6', cycleView);
 shortcuts.register('F8', () => { setStatus('主题: ' + theme.cycle()); });
 shortcuts.register('F1', () => help.toggle());
 shortcuts.register('Ctrl+/', () => help.toggle());
+/* 最近文件快速切换：Alt+R 为主快捷键，Ctrl+Alt+R 作为某些浏览器占用 Alt 单键时的备用。 */
+const toggleQuickSwitch = () => { if (isQuickSwitchOpen()) closeQuickSwitch(); else openQuickSwitch(); };
+shortcuts.register('Alt+R', toggleQuickSwitch);
+shortcuts.register('Ctrl+Alt+R', toggleQuickSwitch);
 shortcuts.attach();
 
 $('#toolbar').addEventListener('click', event => {
@@ -772,6 +963,8 @@ window.addEventListener('keydown', event => {
   if (event.key !== 'Escape') return;
   const dialog = $('#new-dialog');
   if (dialog && dialog.classList.contains('open')) { dialog.classList.remove('open'); return; }
+  // 快速切换浮层：Esc 只关浮层，不退出打印预览
+  if (isQuickSwitchOpen()) { closeQuickSwitch(); return; }
   // 打印设置对话框自己处理 Esc（并 stopPropagation），这里兜底
   if (printSetup.isOpen && printSetup.isOpen()) { printSetup.close(); return; }
   // 打印预览是「全屏」状态，Esc 是用户最直觉的退出方式
@@ -868,7 +1061,11 @@ if (helpCredit) {
   mailLink.href = 'mailto:' + AUTHOR_EMAIL;
   mailLink.textContent = AUTHOR_EMAIL;
   helpCredit.appendChild(mailLink);
+  helpCredit.appendChild(document.createTextNode(' · ' + APP_VERSION_LABEL));
 }
+
+const versionMeta = document.querySelector('meta[name="version"]');
+if (versionMeta) versionMeta.setAttribute('content', APP_VERSION);
 
 viewer.render(editorRef.getText());
 syncTitle();

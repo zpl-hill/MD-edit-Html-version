@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <meta name="author" content="Zhao Pengliang (Fred), zplwsygr@163.com">
+<meta name="version" content="">
 <title>Markdown Studio Lite</title>
 <!-- MDSL:CSS -->
 </head>
@@ -226,6 +227,20 @@
     <div class="help-body" id="help-body"></div>
     <div class="help-foot">点「插入」会把示例写到编辑器光标处 · F1 或 Ctrl+/ 打开 · Esc 关闭<br>
       <span class="help-credit" id="help-credit"></span>
+    </div>
+  </div>
+</div>
+
+<!-- 最近文件快速切换：阅读模式也可用（默认工具栏已达宽度上限，改用悬浮入口 + 快捷键） -->
+<button class="recent-fab" id="recent-fab" type="button" title="最近文件 · 快速切换 (Alt+R / Ctrl+Alt+R)">☰ 最近文件</button>
+<div class="mdsl-dialog" id="recent-switcher">
+  <div class="dialog-card recent-card" role="dialog" aria-modal="true" aria-labelledby="recent-switcher-title">
+    <div class="dialog-head"><strong id="recent-switcher-title">最近文件 · 快速切换</strong><button data-close="1" aria-label="关闭">×</button></div>
+    <p class="recent-hint" id="recent-hint"></p>
+    <div class="recent-switch-list" id="recent-switch-list"></div>
+    <div class="recent-switch-foot">
+      <span>点击即切换 · 切换前自动暂存当前文档 · Alt+R 或 Ctrl+Alt+R 打开 · Esc 关闭</span>
+      <span id="recent-current"></span>
     </div>
   </div>
 </div>

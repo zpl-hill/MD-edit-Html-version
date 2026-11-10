@@ -87,7 +87,8 @@ export function createEditor(options) {
         extensions: makeExtensions(currentTheme)
       }));
       if (view.scrollDOM) view.scrollDOM.scrollTop = 0;
-      view.focus();
+      // 阅读模式下编辑器被 display:none，focus() 会落到隐藏节点；只在可见时聚焦
+      if (view.dom.offsetParent !== null) view.focus();
     },
     insertText(text) { view.dispatch(view.state.replaceSelection(String(text))); view.focus(); },
     focus() { view.focus(); },

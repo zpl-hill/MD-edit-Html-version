@@ -118,6 +118,7 @@ const HELP = [
           { syntax: 'Ctrl+F / Ctrl+H', desc: '编辑器内搜索 / 替换；阅读模式下 Ctrl+F 改为在预览内容里查找，Ctrl+H 会自动切回可编辑视图', insert: null },
           { syntax: '阅读模式查找', desc: 'Ctrl+F 打开查找条：输入即高亮、Enter / Shift+Enter 跳上下一个、Aa 区分大小写、Esc 关闭', insert: null },
           { syntax: 'Ctrl+P / Ctrl+Shift+P / Ctrl+Shift+W', desc: '打印设置（纸张/方向/边距）/ 直接用当前设置打印并另存为 PDF / 导出 Word DOCX', insert: null },
+          { syntax: 'Alt+R / Ctrl+Alt+R', desc: '打开「最近文件 · 快速切换」浮层；Esc 关闭。阅读模式下也有右上角悬浮入口', insert: null },
           { syntax: 'F6', desc: '循环切换视图：三栏 → 仅编辑 → 仅阅读', insert: null },
           { syntax: 'F8 / F1 / Esc', desc: '切换主题 / 打开本帮助 / 关闭弹窗', insert: null }
         ]
@@ -125,10 +126,12 @@ const HELP = [
       {
         title: '数据与保存',
         rows: [
-          { syntax: '新建文档', desc: '新建会换用独立文档编号并清除旧草稿，旧内容不会在刷新时恢复回来；浏览器标签页标题会显示当前文件名', insert: null },
+          { syntax: '新建文档', desc: '新建会复位回固定草稿槽并清除旧草稿，旧内容不会在刷新时恢复回来；已保存过的文件仍可从「最近文件」切回。浏览器标签页标题会显示当前文件名', insert: null },
           { syntax: '30 秒自动保存', desc: '正文快照写入 IndexedDB；关闭或切走时还会写一份压缩草稿', insert: null },
           { syntax: '刷新后恢复', desc: '若发现未保存草稿，顶部会出现横幅，点「恢复」即可还原；点「丢弃」则清空', insert: null },
-          { syntax: '最近文件', desc: '左栏下方列出最近 10 个文件，点击可从本机缓存重新打开正文', insert: null },
+          { syntax: '最近文件', desc: '左栏下方列出最近 10 个文件；打开、保存、另存为时都会缓存正文，点击即可切换过去', insert: null },
+          { syntax: '快速切换', desc: '单窗口切换文档：切换前自动把当前文档暂存到本机（快照 + 紧急草稿），随时可从列表切回；暂存不等于写回原文件，状态栏会明确区分', insert: null },
+          { syntax: '浏览器 / 桌面版差异', desc: '浏览器在 file:// 下不能记住磁盘绝对路径，只能从本机缓存恢复；桌面版 EXE 会记录文件绝对路径，标「原文件」的条目点击后直接重新读取磁盘最新内容，保存也写回该文件', insert: null },
           { syntax: 'A− / A+', desc: '工具栏右侧可调整整个界面字体大小，设置会记住', insert: null }
         ]
       },
@@ -141,7 +144,7 @@ const HELP = [
           { syntax: '导出 PDF', desc: '用当前设置直接打开系统打印对话框，选「另存为 PDF」即可导出；文字可选中、保真度最高', insert: null },
           { syntax: '导出 DOCX', desc: '标题映射为 Word Heading 1~3，表格、代码、内嵌图片（自动居中）、页眉页码都会保留；只支持内嵌图片，外链/相对路径会降级为占位文字并在状态栏提示', insert: null },
           { syntax: 'Word 里的公式', desc: '$...$ / $$...$$ 会转成 Word 原生公式（OMML），在 Word 中可双击编辑；极复杂公式若转换失败会保留红色源码', insert: null },
-          { syntax: '阅读模式', desc: '只想读文档时点「阅读」：隐藏目录与编辑器，预览铺满窗口宽度、字号行距更舒适', insert: null }
+          { syntax: '阅读模式', desc: '只想读文档时点「阅读」：隐藏目录与编辑器，预览铺满窗口宽度、字号行距更舒适；右上角有「☰ 最近文件」悬浮入口，可切到别的文档', insert: null }
         ]
       }
     ]

@@ -217,6 +217,45 @@ body.view-reader .preview-pane .pane-title { justify-content: center; }
 .recent-name { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recent-meta { display: block; font-size: .88em; opacity: .7; margin-top: 1px; }
 
+/* ---------- 最近文件快速切换：阅读模式也可用 ----------
+   阅读模式整宽铺满、侧栏隐藏，工具栏也已达宽度上限，所以用一个悬浮入口
+   + 快捷键唤起独立浮层，不占用工具栏、不破坏沉浸式阅读。 */
+.recent-fab { display: none; }
+body.view-reader:not(.mdsl-print-mode) .recent-fab {
+  display: inline-flex; align-items: center; gap: 6px;
+  position: fixed; z-index: 60;
+  top: calc(var(--toolbar-h) + 10px); right: calc(18px * var(--ui-scale));
+  padding: calc(6px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  font-family: var(--font-sans); font-size: var(--fs-small);
+  color: var(--fg); background: var(--panel);
+  border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 3px 12px rgba(16, 32, 52, .16); cursor: pointer;
+}
+body.view-reader .recent-fab:hover { color: var(--accent); border-color: var(--accent); }
+body.mdsl-print-mode .recent-fab { display: none !important; }
+.dialog-card.recent-card { width: min(560px, 92vw); }
+.recent-hint {
+  font-size: var(--fs-small); color: var(--muted); line-height: 1.75;
+  margin: calc(12px * var(--ui-scale)) 0 calc(10px * var(--ui-scale));
+}
+.recent-switch-list { max-height: min(52vh, 420px); overflow: auto; }
+.recent-switch-list .recent-item {
+  display: block; width: 100%; white-space: normal; overflow: visible;
+  border: 1px solid var(--border); border-radius: 5px;
+  background: var(--bg); margin-bottom: calc(7px * var(--ui-scale));
+  padding: calc(9px * var(--ui-scale)) calc(11px * var(--ui-scale));
+}
+.recent-switch-list .recent-item:hover { border-color: var(--accent); }
+.recent-switch-list .recent-item.is-current { border-color: var(--accent); background: var(--accent-soft); }
+.recent-badge { font-style: normal; color: var(--accent); font-weight: 600; }
+.recent-switch-foot {
+  display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin-top: calc(12px * var(--ui-scale)); padding-top: calc(10px * var(--ui-scale));
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-tiny); color: var(--muted);
+}
+#recent-current { color: var(--fg); font-weight: 600; }
+
 .toc-list { list-style: none; margin: 0; padding-left: calc(10px * var(--ui-scale)); }
 .toc-level-1 { padding-left: 2px; }
 .toc-row { display: flex; align-items: center; gap: 2px; }

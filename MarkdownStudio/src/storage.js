@@ -44,8 +44,15 @@ export function listRecent() {
 }
 
 export function touchRecent(meta) {
+  const previous = listRecent().find(item => item.id === meta.id);
   const list = listRecent().filter(item => item.id !== meta.id);
-  list.unshift({ id: meta.id, name: meta.name, size: meta.size || 0, openedAt: Date.now(), source: meta.source || 'file' });
+  /* path 只有桌面版（Tauri）拿得到；浏览器 file:// 沙箱禁止网页记住绝对路径。
+     若本次调用没带 path，沿用旧条目的，避免另存为/暂存时把路径抹掉。 */
+  const path = meta.path || (previous && previous.path) || null;
+  list.unshift({
+    id: meta.id, name: meta.name, size: meta.size || 0, openedAt: Date.now(),
+    source: meta.source || 'file', path
+  });
   const trimmed = list.slice(0, MAX_RECENT);
   memoryRecent.length = 0;
   trimmed.forEach(item => memoryRecent.push(item));
