@@ -831,6 +831,12 @@ body.mdsl-print-mode .print-pages {
   html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
   .toolbar, .banner, .workspace, .statusbar,
   .mdsl-dialog, .mdsl-lightbox, .print-source, .mdsl-measure { display: none !important; }
+  /* 白名单兜底：body 下只允许 .print-pages 参与打印。
+     V1.11 的悬浮入口、V1.12 的标签条、构建期注入的许可证声明都在 body 顶层，
+     用黑名单逐个枚举必然漏；改成白名单后新增 UI 也不会混进 PDF。
+     测量容器 .mdsl-measure 也挂在 body 上，但分页在 window.print() 之前已完成并移除。
+     许可证声明仍完整内嵌在单 HTML 中、关于页可查看，只是不进入打印输出。 */
+  body > :not(.print-pages) { display: none !important; }
   .print-pages {
     display: block !important;
     position: static !important;
@@ -31455,9 +31461,9 @@ const __mdsl_version = (() => {
    about 页、帮助页脚、桌面壳（package.json / Cargo.toml / tauri.conf.json）
    必须与这里保持一致；发布前用 tools/check-version.ps1 或人工核对。
    版本序列：V1.9 打印设置 → V1.10 打印预览留白 → V1.11 最近文件快速切换
-             → V1.12 常驻文件标签条。 */
-const APP_VERSION = '1.12.0';
-const APP_VERSION_LABEL = 'V1.12';
+             → V1.12 常驻文件标签条 → V1.13 打印输出内容纯净性修复。 */
+const APP_VERSION = '1.13.0';
+const APP_VERSION_LABEL = 'V1.13';
 
 return {APP_VERSION,APP_VERSION_LABEL};
 })();

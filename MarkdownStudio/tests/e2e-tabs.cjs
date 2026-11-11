@@ -122,8 +122,8 @@ const TAB_STATE = `(() => {
   check('workspace 高度已扣除标签条，底部未被裁',
     Math.abs(layout.bottom + layout.footerH - layout.winH) <= 2,
     `bottom=${layout.bottom.toFixed(1)} + footer=${layout.footerH.toFixed(1)} vs ${layout.winH}`);
-  check('meta 版本号 = 1.12.0',
-    (await evaluate(`document.querySelector('meta[name="version"]').getAttribute('content')`)) === '1.12.0');
+  check('meta 版本号 = 1.13.0',
+    (await evaluate(`document.querySelector('meta[name="version"]').getAttribute('content')`)) === '1.13.0');
 
   // 2) 打开两份文件后，两份都要出现在标签条上
   await evaluate(`(document.querySelector('#recent-list .recent-item[data-id="file:a.md:6"]').click(), true)`);
@@ -251,7 +251,7 @@ const TAB_STATE = `(() => {
   await evaluate(`(document.querySelector('[data-action="about"]').click(), true)`);
   await sleep(250);
   const about = await evaluate(`document.querySelector('#about-dialog .about-body').innerText`);
-  check('关于页显示 V1.12 / 1.12.0', /V1\.12/.test(about) && /1\.12\.0/.test(about), about.slice(0, 80));
+  check('关于页显示 V1.13 / 1.13.0', /V1\.13/.test(about) && /1\.13\.0/.test(about), about.slice(0, 80));
 
   // 13) 无异常
   check('页面无未捕获异常', exceptions.length === 0, exceptions.slice(0, 2).join(' | '));

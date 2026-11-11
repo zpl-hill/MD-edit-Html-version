@@ -130,6 +130,24 @@ function check(name, pass, detail) {
   check('桌面版点「退出预览」回到编辑', exited.mode === false && exited.editorVisible === true,
     `mode=${exited.mode} editor=${exited.editorVisible}`);
 
+  // V1.13：桌面版同样验证打印输出不含应用 UI（白名单规则在 WebView2 下生效）
+  await send('Emulation.setEmulatedMedia', { media: 'print', features: [] });
+  await sleep(300);
+  const clean = await evaluate(`(() => {
+    const d = sel => { const el = document.querySelector(sel); return el ? getComputedStyle(el).display : '(missing)'; };
+    return {
+      tabbar: d('.tabbar'), fab: d('.recent-fab'), notices: d('.third-party-notices'),
+      pages: d('.print-pages'), text: document.body.innerText
+    };
+  })()`);
+  check('桌面版打印输出隐藏标签条/悬浮入口/许可证声明',
+    clean.tabbar === 'none' && clean.fab === 'none' && clean.notices === 'none',
+    `${clean.tabbar}/${clean.fab}/${clean.notices}`);
+  check('桌面版打印输出保留打印页且文本层无 UI',
+    clean.pages !== 'none' && !clean.text.includes('Third-party software licenses') &&
+    !clean.text.includes('☰ 最近文件'), clean.pages);
+  await send('Emulation.setEmulatedMedia', { media: '', features: [] });
+
   const exceptions = await evaluate(`window.__mdslErrors ? window.__mdslErrors.length : 0`);
   check('无脚本异常', exceptions === 0, String(exceptions));
 

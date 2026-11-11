@@ -130,8 +130,8 @@ const TABS = `(() => {
   check('关闭非当前标签后数量减少',
     (await evaluate(`document.querySelectorAll('#tabbar .mdsl-tab').length`)) === (reader.count - 1));
 
-  check('meta 版本号 = 1.12.0',
-    (await evaluate(`document.querySelector('meta[name="version"]').getAttribute('content')`)) === '1.12.0');
+  check('meta 版本号 = 1.13.0',
+    (await evaluate(`document.querySelector('meta[name="version"]').getAttribute('content')`)) === '1.13.0');
   check('页面无未捕获异常', exceptions.length === 0, exceptions.slice(0, 2).join(' | '));
 
   const failed = results.filter(r => !r.pass);

@@ -1,4 +1,4 @@
-/** e2e-quick-switch.cjs — 最近文件快速切换（V1.11，版本断言已随 V1.12 更新）
+/** e2e-quick-switch.cjs — 最近文件快速切换（V1.11，版本断言已随 V1.13 更新）
  *  验证：阅读模式浮层入口 / 快捷键 / Esc、点击直接打开文档、切换前暂存并可切回、
  *  undo 历史隔离、版本号与无异常。浏览器版（file://）只验证「本机缓存」路径。
  */
@@ -95,7 +95,7 @@ const key = (k, code, vk, modifiers = 0) => [
     version: document.querySelector('meta[name="version"]').getAttribute('content')
   }))()`);
   check('侧栏最近文件渲染 2 条', seeded.items === 2, String(seeded.items));
-  check('meta 版本号 = 1.12.0', seeded.version === '1.12.0', seeded.version);
+  check('meta 版本号 = 1.13.0', seeded.version === '1.13.0', seeded.version);
 
   // 1) 阅读模式：整宽铺满，但必须有可见的「最近文件」悬浮入口
   await evaluate(`(document.querySelector('[data-view="reader"]').click(), true)`);
@@ -192,7 +192,7 @@ const key = (k, code, vk, modifiers = 0) => [
   await evaluate(`(document.querySelector('[data-action="about"]').click(), true)`);
   await sleep(250);
   const about = await evaluate(`document.querySelector('#about-dialog .about-body').innerText`);
-  check('关于页显示 V1.12 / 1.12.0', /V1\.12/.test(about) && /1\.12\.0/.test(about), about.slice(0, 90));
+  check('关于页显示 V1.13 / 1.13.0', /V1\.13/.test(about) && /1\.13\.0/.test(about), about.slice(0, 90));
 
   // 6) 根因验证：用「打开」读入的文件必须立刻写入正文缓存
   await evaluate(`(() => {
